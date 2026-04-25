@@ -11,68 +11,186 @@ type StockItem = {
   unit: string | null;
   category?: string | null;
   note?: string | null;
+  updated_by?: string | null;
   updated_at?: string | null;
 };
 
-type Shelf = {
+type Group = {
   title: string;
   subtitle: string;
-  category: string;
   icon: string;
+  color: string;
+  match: string[];
 };
 
-const SHELVES: Shelf[] = [
+const GROUPS: Group[] = [
   {
-    title: "Vegetable Shelf",
-    subtitle: "Fresh Ingredients",
-    category: "Vegetables",
+    title: "Frischware",
+    subtitle: "Gemüse, Salat, frische Zutaten",
     icon: "🥬",
+    color: "bg-[#1f4d2b]",
+    match: [
+      "tomato",
+      "tomate",
+      "salat",
+      "salad",
+      "gurke",
+      "cucumber",
+      "rucola",
+      "paprika",
+      "rote bete",
+      "beet",
+      "petersilie",
+      "kresse",
+      "zucchini",
+      "aubergine",
+    ],
   },
   {
-    title: "Dairy Shelf",
-    subtitle: "Cold Products",
-    category: "Dairy",
-    icon: "🧀",
+    title: "Kühlware",
+    subtitle: "Käse, Fleisch, Tofu und gekühlte Ware",
+    icon: "🧊",
+    color: "bg-[#284b63]",
+    match: [
+      "gouda",
+      "mozzarella",
+      "brie",
+      "bergkäse",
+      "käse",
+      "camembert",
+      "pute",
+      "putenbrust",
+      "tofu",
+      "räuchertofu",
+      "leberkäse",
+      "fleischkäse",
+      "salami",
+      "schinken",
+      "pastrami",
+      "ei",
+      "eier",
+    ],
   },
   {
-    title: "Other Shelf",
-    subtitle: "Kitchen Storage",
-    category: "Other",
+    title: "Saucen & Creme",
+    subtitle: "Aufstriche, Mayo, Pesto und Cremes",
+    icon: "🥣",
+    color: "bg-[#8a5a28]",
+    match: [
+      "mayo",
+      "senf",
+      "senf-mayo",
+      "pesto",
+      "preiselbeere",
+      "tomatenaufstrich",
+      "tomate scharf",
+      "olivencreme",
+      "olivenöl",
+      "bbq",
+      "dill",
+      "meerrettich",
+      "sahne",
+      "creme",
+      "vegane mayo",
+    ],
+  },
+  {
+    title: "Sonstiges",
+    subtitle: "Weitere Lagerprodukte",
     icon: "📦",
+    color: "bg-stone-800",
+    match: [],
   },
 ];
 
-function productIcon(name: string, category?: string | null) {
-  const text = name.toLowerCase();
-
-  if (text.includes("tomato") || text.includes("tomate")) return "🍅";
-  if (text.includes("salad") || text.includes("salat")) return "🥗";
-  if (text.includes("mozzarella") || text.includes("cheese") || text.includes("käse")) return "🧀";
-  if (text.includes("milk") || text.includes("milch")) return "🥛";
-  if (text.includes("bread") || text.includes("brot")) return "🥖";
-  if (text.includes("onion") || text.includes("zwiebel")) return "🧅";
-  if (text.includes("pepper") || text.includes("paprika")) return "🫑";
-
-  if (category === "Vegetables") return "🥬";
-  if (category === "Dairy") return "🧀";
-
-  return "📦";
+function getNumber(value: string) {
+  const n = Number(value);
+  return Number.isNaN(n) ? 0 : n;
 }
 
-function stockStatus(qty: number) {
-  if (qty <= 0) return { label: "Leer", color: "bg-red-100 text-red-700" };
-  if (qty <= 2) return { label: "Wenig", color: "bg-amber-100 text-amber-800" };
-  return { label: "OK", color: "bg-[#e8f2eb] text-[#1f4d2b]" };
+function isUpdatedToday(dateValue?: string | null) {
+  if (!dateValue) return false;
+
+  const updated = new Date(dateValue);
+  const today = new Date();
+
+  return (
+    updated.getDate() === today.getDate() &&
+    updated.getMonth() === today.getMonth() &&
+    updated.getFullYear() === today.getFullYear()
+  );
 }
 
-function meterColor(qty: number) {
+function getStatus(item: StockItem) {
+  const qty = getNumber(item.quantity);
+  const updatedToday = isUpdatedToday(item.updated_at);
+
+  if (!updatedToday) {
+    return {
+      label: "Nicht heute",
+      className: "bg-red-50 text-red-700 border-red-100",
+    };
+  }
+
+  if (qty <= 0) {
+    return {
+      label: "Leer",
+      className: "bg-red-50 text-red-700 border-red-100",
+    };
+  }
+
+  if (qty <= 2) {
+    return {
+      label: "Wenig",
+      className: "bg-amber-50 text-amber-800 border-amber-100",
+    };
+  }
+
+  return {
+    label: "OK",
+    className: "bg-[#e8f2eb] text-[#1f4d2b] border-[#d5eadb]",
+  };
+}
+
+function getMeterColor(item: StockItem) {
+  const qty = getNumber(item.quantity);
+
+  if (!isUpdatedToday(item.updated_at)) return "bg-red-500";
   if (qty <= 0) return "bg-red-500";
   if (qty <= 2) return "bg-amber-500";
   return "bg-[#2f7d46]";
 }
 
-function meterPercent(qty: number) {
+function getMeterPercent(item: StockItem) {
+  const qty = getNumber(item.quantity);
   return Math.min((qty / 10) * 100, 100);
+}
+
+function getProductIcon(name: string) {
+  const text = name.toLowerCase();
+
+  if (text.includes("tomate") || text.includes("tomato")) return "🍅";
+  if (text.includes("salat") || text.includes("salad")) return "🥬";
+  if (text.includes("gurke") || text.includes("cucumber")) return "🥒";
+  if (text.includes("paprika")) return "🫑";
+  if (text.includes("rucola")) return "🌿";
+  if (text.includes("käse") || text.includes("gouda") || text.includes("mozzarella") || text.includes("brie")) return "🧀";
+  if (text.includes("pute") || text.includes("schinken") || text.includes("salami") || text.includes("fleisch")) return "🥩";
+  if (text.includes("tofu")) return "🧈";
+  if (text.includes("mayo") || text.includes("pesto") || text.includes("creme") || text.includes("sahne")) return "🥣";
+  if (text.includes("ei")) return "🥚";
+
+  return "📦";
+}
+
+function getGroupForItem(item: StockItem) {
+  const name = item.item_name.toLowerCase();
+
+  const foundGroup = GROUPS.find((group) =>
+    group.match.some((word) => name.includes(word.toLowerCase()))
+  );
+
+  return foundGroup?.title || "Sonstiges";
 }
 
 export default function CurrentStockPage() {
@@ -97,7 +215,7 @@ export default function CurrentStockPage() {
 
     const { data, error } = await supabase
       .from("stock_items")
-      .select("id, item_name, quantity, unit, category, note, updated_at")
+      .select("id, item_name, quantity, unit, category, note, updated_by, updated_at")
       .order("item_name", { ascending: true });
 
     if (error) {
@@ -111,19 +229,33 @@ export default function CurrentStockPage() {
     setLoading(false);
   }
 
-  const totalQuantity = useMemo(() => {
-    return items.reduce((sum, item) => {
-      const qty = Number(item.quantity);
-      return sum + (Number.isNaN(qty) ? 0 : qty);
+  const stats = useMemo(() => {
+    const updatedTodayCount = items.filter((item) =>
+      isUpdatedToday(item.updated_at)
+    ).length;
+
+    const notUpdatedCount = items.length - updatedTodayCount;
+
+    const lowCount = items.filter((item) => {
+      const qty = getNumber(item.quantity);
+      return qty <= 2;
+    }).length;
+
+    const totalQuantity = items.reduce((sum, item) => {
+      return sum + getNumber(item.quantity);
     }, 0);
+
+    return {
+      totalProducts: items.length,
+      totalQuantity,
+      updatedTodayCount,
+      notUpdatedCount,
+      lowCount,
+    };
   }, [items]);
 
-  const lowStockCount = useMemo(() => {
-    return items.filter((item) => Number(item.quantity) <= 2).length;
-  }, [items]);
-
-  function getShelfItems(category: string) {
-    return items.filter((item) => (item.category || "Other") === category);
+  function getItemsForGroup(groupTitle: string) {
+    return items.filter((item) => getGroupForItem(item) === groupTitle);
   }
 
   return (
@@ -136,10 +268,10 @@ export default function CurrentStockPage() {
                 LPG BioMarkt
               </p>
               <h1 className="mt-1 text-3xl font-black tracking-tight">
-                Küchenlager
+                Aktueller Lagerbestand
               </h1>
               <p className="mt-1 text-sm text-stone-500">
-                Aktueller Bestand nach Regalen
+                Manager-Übersicht für den heutigen Bestand
               </p>
             </div>
 
@@ -149,136 +281,182 @@ export default function CurrentStockPage() {
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-3 gap-2">
-            <div className="rounded-2xl bg-[#1f4d2b] p-3 text-white">
-              <p className="text-[11px] text-white/75">Produkte</p>
-              <p className="mt-1 text-2xl font-black">{items.length}</p>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-[#1f4d2b] p-4 text-white">
+              <p className="text-xs text-white/75">Produkte</p>
+              <p className="mt-1 text-3xl font-black">{stats.totalProducts}</p>
             </div>
 
-            <div className="rounded-2xl bg-stone-800 p-3 text-white">
-              <p className="text-[11px] text-white/75">Gesamt</p>
-              <p className="mt-1 text-2xl font-black">{totalQuantity}</p>
+            <div className="rounded-2xl bg-stone-800 p-4 text-white">
+              <p className="text-xs text-white/75">Gesamtmenge</p>
+              <p className="mt-1 text-3xl font-black">{stats.totalQuantity}</p>
             </div>
 
-            <div className="rounded-2xl bg-[#d6a21e] p-3 text-white">
-              <p className="text-[11px] text-white/75">Wenig</p>
-              <p className="mt-1 text-2xl font-black">{lowStockCount}</p>
+            <div className="rounded-2xl bg-[#2f7d46] p-4 text-white">
+              <p className="text-xs text-white/75">Heute aktualisiert</p>
+              <p className="mt-1 text-3xl font-black">{stats.updatedTodayCount}</p>
+            </div>
+
+            <div className="rounded-2xl bg-[#d6a21e] p-4 text-white">
+              <p className="text-xs text-white/75">Wenig / Leer</p>
+              <p className="mt-1 text-3xl font-black">{stats.lowCount}</p>
             </div>
           </div>
+
+          {stats.notUpdatedCount > 0 ? (
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-sm font-bold text-amber-900">
+                ⚠️ {stats.notUpdatedCount} Produkt(e) wurden heute noch nicht aktualisiert.
+              </p>
+              <p className="mt-1 text-xs text-amber-800">
+                Bitte Bestand prüfen und auf der Lagerseite aktualisieren.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-2xl border border-[#d5eadb] bg-[#e8f2eb] px-4 py-3">
+              <p className="text-sm font-bold text-[#1f4d2b]">
+                ✅ Alle Produkte wurden heute aktualisiert.
+              </p>
+            </div>
+          )}
         </section>
 
         {loading ? (
           <section className="mt-5 rounded-[28px] bg-white p-6 text-center shadow-sm">
-            Bestand wird geladen...
+            Lagerbestand wird geladen...
           </section>
         ) : (
           <div className="mt-5 space-y-5">
-            {SHELVES.map((shelf) => {
-              const shelfItems = getShelfItems(shelf.category);
-              const shelfQty = shelfItems.reduce((sum, item) => {
-                const qty = Number(item.quantity);
-                return sum + (Number.isNaN(qty) ? 0 : qty);
-              }, 0);
+            {GROUPS.map((group) => {
+              const groupItems = getItemsForGroup(group.title);
+              const groupQuantity = groupItems.reduce(
+                (sum, item) => sum + getNumber(item.quantity),
+                0
+              );
+              const groupNotUpdated = groupItems.filter(
+                (item) => !isUpdatedToday(item.updated_at)
+              ).length;
 
               return (
                 <section
-                  key={shelf.category}
-                  className="overflow-hidden rounded-[30px] border border-stone-200 bg-white shadow-sm"
+                  key={group.title}
+                  className="overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-sm"
                 >
                   <div className="border-b border-stone-200 bg-[#fbfaf7] px-5 py-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2f5d3a]">
-                          {shelf.subtitle}
+                          {group.subtitle}
                         </p>
                         <h2 className="mt-1 text-2xl font-black">
-                          {shelf.title}
+                          {group.title}
                         </h2>
                       </div>
 
                       <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f5f1e8] text-3xl">
-                        {shelf.icon}
+                        {group.icon}
                       </div>
                     </div>
 
-                    <div className="mt-3 flex items-center gap-2">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-bold text-stone-700">
-                        {shelfItems.length} Produkte
+                        {groupItems.length} Produkte
                       </span>
+
                       <span className="rounded-full bg-[#e8f2eb] px-3 py-1 text-xs font-bold text-[#1f4d2b]">
-                        Gesamt: {shelfQty}
+                        Gesamt: {groupQuantity}
                       </span>
+
+                      {groupNotUpdated > 0 ? (
+                        <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
+                          {groupNotUpdated} offen
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 
-                  <div className="relative px-5 py-6">
-                    {/* Premium wooden shelf drawing */}
-                    <div className="absolute left-4 right-4 top-14 h-4 rounded-md bg-gradient-to-b from-[#9b6b47] to-[#6b4226]" />
-                    <div className="absolute left-4 right-4 top-[180px] h-4 rounded-md bg-gradient-to-b from-[#9b6b47] to-[#6b4226]" />
-                    <div className="absolute left-4 right-4 bottom-12 h-4 rounded-md bg-gradient-to-b from-[#9b6b47] to-[#6b4226]" />
+                  <div className="space-y-3 p-4">
+                    {groupItems.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-8 text-center text-sm text-stone-500">
+                        Keine Produkte in dieser Kategorie.
+                      </div>
+                    ) : (
+                      groupItems.map((item) => {
+                        const qty = getNumber(item.quantity);
+                        const status = getStatus(item);
+                        const updatedToday = isUpdatedToday(item.updated_at);
 
-                    <div className="absolute left-6 top-10 bottom-10 w-2 rounded bg-gradient-to-r from-[#6b4226] to-[#4a2d19]" />
-                    <div className="absolute right-6 top-10 bottom-10 w-2 rounded bg-gradient-to-r from-[#6b4226] to-[#4a2d19]" />
+                        return (
+                          <article
+                            key={item.id}
+                            className="rounded-2xl border border-stone-200 bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f5f1e8] text-2xl">
+                                {getProductIcon(item.item_name)}
+                              </div>
 
-                    <div className="relative z-10 space-y-6 py-4">
-                      {shelfItems.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-8 text-center text-sm text-stone-500">
-                          Dieses Regal ist leer — Produkte im Lager hinzufügen.
-                        </div>
-                      ) : (
-                        shelfItems.map((item) => {
-                          const qty = Number(item.quantity);
-                          const status = stockStatus(qty);
-
-                          return (
-                            <div
-                              key={item.id}
-                              className="rounded-xl border border-b-2 border-stone-200 bg-white p-3 shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition hover:scale-[1.01]"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f0ebe3] text-xl">
-                                  {productIcon(item.item_name, item.category)}
-                                </div>
-
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <h3 className="truncate text-base font-black">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <h3 className="text-lg font-black leading-tight">
                                       {item.item_name}
                                     </h3>
 
-                                    <span
-                                      className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${status.color}`}
-                                    >
-                                      {status.label}
-                                    </span>
+                                    <p className="mt-1 text-sm font-semibold text-stone-700">
+                                      {item.quantity} {item.unit || ""}
+                                    </p>
                                   </div>
 
-                                  <p className="mt-1 text-sm font-semibold text-stone-700">
-                                    {item.quantity} {item.unit || ""}
+                                  <span
+                                    className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold ${status.className}`}
+                                  >
+                                    {status.label}
+                                  </span>
+                                </div>
+
+                                <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-200">
+                                  <div
+                                    className={`h-full rounded-full ${getMeterColor(item)}`}
+                                    style={{
+                                      width: `${getMeterPercent(item)}%`,
+                                      transition: "width 0.4s ease",
+                                    }}
+                                  />
+                                </div>
+
+                                {item.note ? (
+                                  <div className="mt-3 rounded-xl bg-[#fff8df] px-3 py-2 text-xs font-medium text-stone-700">
+                                    {item.note}
+                                  </div>
+                                ) : null}
+
+                                <div className="mt-3 rounded-xl bg-stone-50 px-3 py-2">
+                                  <p className="text-xs text-stone-500">
+                                    Aktualisiert von
+                                  </p>
+                                  <p className="text-sm font-bold text-stone-800">
+                                    {item.updated_by || "-"}
                                   </p>
 
-                                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-stone-200">
-                                    <div
-                                      className={`h-full rounded-full ${meterColor(qty)}`}
-                                      style={{
-                                        width: `${meterPercent(qty)}%`,
-                                        transition: "width 0.4s ease",
-                                      }}
-                                    />
-                                  </div>
-
-                                  {item.note ? (
-                                    <div className="mt-2 rounded-md bg-[#f7f1df] px-2 py-1 text-xs text-stone-700">
-                                      {item.note}
-                                    </div>
-                                  ) : null}
+                                  <p
+                                    className={`mt-1 text-xs font-medium ${
+                                      updatedToday
+                                        ? "text-[#1f4d2b]"
+                                        : "text-red-700"
+                                    }`}
+                                  >
+                                    {item.updated_at
+                                      ? new Date(item.updated_at).toLocaleString("de-DE")
+                                      : "Noch nicht aktualisiert"}
+                                  </p>
                                 </div>
                               </div>
                             </div>
-                          );
-                        })
-                      )}
-                    </div>
+                          </article>
+                        );
+                      })
+                    )}
                   </div>
                 </section>
               );
