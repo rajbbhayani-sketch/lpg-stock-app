@@ -18,12 +18,45 @@ type StockItem = {
   expiry_date?: string | null;
 };
 
-const FILTERS = ["Alle", "Vegetables", "Dairy", "Other"];
+const UNITS = ["kg", "g", "Box", "Packung", "Stück", "Liter"];
+const QUICK_QTY = ["0.5", "1", "2", "3", "5", "10"];
+
+const COMMON_PRODUCTS = [
+  "Tomate",
+  "Gurke",
+  "Salat",
+  "Rucola",
+  "Paprika",
+  "Rote Bete",
+  "Petersilie",
+  "Kresse",
+  "Gouda",
+  "Mozzarella",
+  "Brie",
+  "Bergkäse",
+  "Camembert",
+  "Pute",
+  "Salami",
+  "Schinken",
+  "Tofu",
+  "Räuchertofu",
+  "Eier",
+  "Mayo",
+  "Senf-Mayo",
+  "Vegane Mayo",
+  "Pesto",
+  "Sahne",
+  "Dill",
+  "Meerrettich",
+  "Preiselbeere",
+  "Tomate scharf",
+  "Olivencreme",
+];
 
 const EMPTY_FORM = {
   item_name: "",
-  quantity: "0",
-  unit: "",
+  quantity: "",
+  unit: "kg",
   note: "",
   category: "Other",
   product_number: "",
@@ -31,16 +64,50 @@ const EMPTY_FORM = {
   expiry_date: "",
 };
 
+function guessCategory(name: string) {
+  const text = name.toLowerCase();
+
+  if (
+    text.includes("tomate") ||
+    text.includes("gurke") ||
+    text.includes("salat") ||
+    text.includes("rucola") ||
+    text.includes("paprika") ||
+    text.includes("rote bete") ||
+    text.includes("petersilie") ||
+    text.includes("kresse")
+  ) {
+    return "Vegetables";
+  }
+
+  if (
+    text.includes("gouda") ||
+    text.includes("mozzarella") ||
+    text.includes("brie") ||
+    text.includes("bergkäse") ||
+    text.includes("camembert") ||
+    text.includes("pute") ||
+    text.includes("salami") ||
+    text.includes("schinken") ||
+    text.includes("tofu") ||
+    text.includes("ei")
+  ) {
+    return "Dairy";
+  }
+
+  return "Other";
+}
+
 export default function Home() {
   const [items, setItems] = useState<StockItem[]>([]);
   const [workerName, setWorkerName] = useState("");
-  const [searchText, setSearchText] = useState("");
-  const [activeFilter, setActiveFilter] = useState("Alle");
   const [todayText, setTodayText] = useState("");
-  const [showForm, setShowForm] = useState(false);
-  const [editingItem, setEditingItem] = useState<StockItem | null>(null);
-  const [formData, setFormData] = useState(EMPTY_FORM);
   const [loading, setLoading] = useState(true);
+
+  const [quickForm, setQuickForm] = useState(EMPTY_FORM);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const [editingItem, setEditingItem] = useState<StockItem | null>(null);
 
   useEffect(() => {
     const savedName = localStorage.getItem("workerName");
@@ -49,7 +116,7 @@ export default function Home() {
     setTodayText(
       new Date().toLocaleDateString("de-DE", {
         day: "2-digit",
-        month: "2-digit",
+        month: "long",
         year: "numeric",
       })
     );
@@ -76,25 +143,97 @@ export default function Home() {
     setLoading(false);
   }
 
-  async function saveHistory(itemName: string, oldQuantity: string, newQuantity: string) {
-    if (!workerName.trim()) return;
+  const productSuggestions = useMemo(() => {
+    const existing = items.map((item) => item.item_name);
+    return Array.from(new Set([...COMMON_PRODUCTS, ...existing])).sort();
+  }, [items]);
 
+  const filteredSuggestions = useMemo(() => {
+    const value = quickForm.item_name.toLowerCase();
+
+    if (!value) return productSuggestions;
+
+    return productSuggestions.filter((name) =>
+      name.toLowerCase().includes(value)
+    );
+  }, [productSuggestions, quickForm.item_name]);
+
+  const lowStockCount = items.filter((i) => Number(i.quantity) <= 2).length;
+
+  async function saveHistory(
+    itemName: string,
+    oldQuantity: string,
+    newQuantity: string
+  ) {
     await supabase.from("stock_history").insert({
       item_name: itemName,
       old_quantity: oldQuantity,
       new_quantity: newQuantity,
-      changed_by: workerName.trim(),
+      changed_by: workerName.trim() || "Küche",
       changed_at: new Date().toISOString(),
     });
   }
 
-  async function updateQuantity(item: StockItem, change: number) {
-    if (!workerName.trim()) {
-      alert("Bitte zuerst Namen eingeben.");
+  async function quickSave() {
+    const name = quickForm.item_name.trim();
+    const qty = quickForm.quantity.trim();
+    const unit = quickForm.unit.trim();
+
+    if (!name) {
+      alert("Bitte Produkt auswählen oder eingeben.");
       return;
     }
 
+    if (!qty || Number.isNaN(Number(qty))) {
+      alert("Bitte Menge eingeben.");
+      return;
+    }
+
+    const existingItem = items.find(
+      (item) => item.item_name.toLowerCase() === name.toLowerCase()
+    );
+
+    const payload = {
+      item_name: name,
+      quantity: qty,
+      unit,
+      note: quickForm.note.trim() || null,
+      category: guessCategory(name),
+      updated_by: workerName.trim() || "Küche",
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existingItem) {
+      const { error } = await supabase
+        .from("stock_items")
+        .update(payload)
+        .eq("id", existingItem.id);
+
+      if (error) {
+        alert(`Speichern fehlgeschlagen: ${error.message}`);
+        return;
+      }
+
+      await saveHistory(existingItem.item_name, existingItem.quantity, qty);
+    } else {
+      const { error } = await supabase.from("stock_items").insert(payload);
+
+      if (error) {
+        alert(`Produkt hinzufügen fehlgeschlagen: ${error.message}`);
+        return;
+      }
+
+      await saveHistory(name, "0", qty);
+    }
+
+    setQuickForm(EMPTY_FORM);
+    setShowSuggestions(false);
+    await loadItems();
+  }
+
+  async function updateQuantity(item: StockItem, change: number) {
     const currentQty = Number(item.quantity);
+
     if (Number.isNaN(currentQty)) {
       alert("Menge ist keine Zahl.");
       return;
@@ -106,7 +245,7 @@ export default function Home() {
       .from("stock_items")
       .update({
         quantity: String(newQty),
-        updated_by: workerName.trim(),
+        updated_by: workerName.trim() || "Küche",
         updated_at: new Date().toISOString(),
       })
       .eq("id", item.id);
@@ -120,91 +259,29 @@ export default function Home() {
     await loadItems();
   }
 
-  function openAddForm() {
-    setEditingItem(null);
-    setFormData(EMPTY_FORM);
-    setShowForm(true);
-  }
-
-  function openEditForm(item: StockItem) {
+  function openEdit(item: StockItem) {
     setEditingItem(item);
-    setFormData({
+    setQuickForm({
       item_name: item.item_name || "",
-      quantity: item.quantity || "0",
-      unit: item.unit || "",
+      quantity: item.quantity || "",
+      unit: item.unit || "kg",
       note: item.note || "",
       category: item.category || "Other",
       product_number: item.product_number || "",
       product_date: item.product_date || "",
       expiry_date: item.expiry_date || "",
     });
-    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function closeForm() {
-    setShowForm(false);
-    setEditingItem(null);
-    setFormData(EMPTY_FORM);
-  }
-
-  async function handleSaveProduct() {
-    if (!workerName.trim()) {
-      alert("Bitte zuerst Namen eingeben.");
-      return;
-    }
-
-    if (!formData.item_name.trim()) {
-      alert("Produktname ist erforderlich.");
-      return;
-    }
-
-    if (Number.isNaN(Number(formData.quantity))) {
-      alert("Menge muss eine Zahl sein.");
-      return;
-    }
-
-    const payload = {
-      item_name: formData.item_name.trim(),
-      quantity: String(Math.max(0, Number(formData.quantity))),
-      unit: formData.unit.trim() || null,
-      note: formData.note.trim() || null,
-      category: formData.category || "Other",
-      product_number: formData.product_number.trim() || null,
-      product_date: formData.product_date || null,
-      expiry_date: formData.expiry_date || null,
-      updated_by: workerName.trim(),
-      updated_at: new Date().toISOString(),
-    };
-
-    if (editingItem) {
-      const { error } = await supabase.from("stock_items").update(payload).eq("id", editingItem.id);
-
-      if (error) {
-        alert(`Speichern fehlgeschlagen: ${error.message}`);
-        return;
-      }
-
-      await saveHistory(editingItem.item_name, editingItem.quantity, payload.quantity);
-    } else {
-      const { error } = await supabase.from("stock_items").insert(payload);
-
-      if (error) {
-        alert(`Produkt konnte nicht hinzugefügt werden: ${error.message}`);
-        return;
-      }
-
-      await saveHistory(payload.item_name, "0", payload.quantity);
-    }
-
-    closeForm();
-    await loadItems();
-  }
-
-  async function handleDeleteProduct(item: StockItem) {
+  async function deleteItem(item: StockItem) {
     const ok = window.confirm(`${item.item_name} wirklich löschen?`);
     if (!ok) return;
 
-    const { error } = await supabase.from("stock_items").delete().eq("id", item.id);
+    const { error } = await supabase
+      .from("stock_items")
+      .delete()
+      .eq("id", item.id);
 
     if (error) {
       alert(`Löschen fehlgeschlagen: ${error.message}`);
@@ -215,50 +292,30 @@ export default function Home() {
     await loadItems();
   }
 
+  function getStatus(qty: number) {
+    if (qty <= 0) return "Leer";
+    if (qty <= 2) return "Wenig";
+    return "OK";
+  }
+
+  function getStatusClass(qty: number) {
+    if (qty <= 0) return "bg-red-50 text-red-700";
+    if (qty <= 2) return "bg-amber-50 text-amber-800";
+    return "bg-[#e8f2eb] text-[#1f4d2b]";
+  }
+
+  function getMeterColor(qty: number) {
+    if (qty <= 0) return "bg-red-500";
+    if (qty <= 2) return "bg-amber-500";
+    return "bg-[#2f7d46]";
+  }
+
   function getMeterPercent(qty: number) {
     return Math.min((qty / 10) * 100, 100);
   }
 
-  function getMeterColor(qty: number) {
-    if (qty <= 2) return "bg-red-500";
-    if (qty <= 5) return "bg-amber-500";
-    return "bg-[#2f7d46]";
-  }
-
-  function getHealthScore() {
-    if (items.length === 0) return 0;
-
-    let total = 0;
-    for (const item of items) {
-      const qty = Number(item.quantity);
-      if (Number.isNaN(qty)) total += 0;
-      else if (qty <= 2) total += 35;
-      else if (qty <= 5) total += 70;
-      else total += 100;
-    }
-
-    return Math.round(total / items.length);
-  }
-
-  function getHealthLabel(score: number) {
-    if (score < 45) return "Aufmerksamkeit nötig";
-    if (score < 75) return "Mittel";
-    return "Gut";
-  }
-
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      const matchesSearch = item.item_name.toLowerCase().includes(searchText.toLowerCase());
-      const matchesFilter = activeFilter === "Alle" || (item.category || "Other") === activeFilter;
-      return matchesSearch && matchesFilter;
-    });
-  }, [items, searchText, activeFilter]);
-
-  const lowStockCount = items.filter((i) => Number(i.quantity) <= 2).length;
-  const healthScore = getHealthScore();
-
   return (
-    <main className="min-h-screen bg-[#f5f1e8] pb-28 text-stone-900">
+    <main className="min-h-screen bg-gradient-to-b from-[#f5f1e8] to-[#ece6dc] pb-28 text-stone-900">
       <div className="mx-auto max-w-md px-4 py-4">
         <section className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3">
@@ -266,8 +323,12 @@ export default function Home() {
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#2f5d3a]">
                 LPG BioMarkt
               </p>
-              <h1 className="mt-1 text-3xl font-black tracking-tight">Lagerverwaltung</h1>
-              <p className="mt-1 text-sm text-stone-500">Täglicher Bestand für die Küche</p>
+              <h1 className="mt-1 text-3xl font-black tracking-tight">
+                Lager
+              </h1>
+              <p className="mt-1 text-sm text-stone-500">
+                Schnelle Tagesaktualisierung
+              </p>
             </div>
 
             <div className="rounded-2xl bg-[#f5f1e8] px-3 py-2 text-right">
@@ -283,164 +344,218 @@ export default function Home() {
             </div>
 
             <div className="rounded-2xl bg-[#d6a21e] p-4 text-white">
-              <p className="text-xs text-white/80">Niedriger Bestand</p>
+              <p className="text-xs text-white/75">Wenig / Leer</p>
               <p className="mt-1 text-3xl font-black">{lowStockCount}</p>
             </div>
           </div>
+        </section>
 
-          <div className="mt-4 rounded-2xl bg-stone-50 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-stone-500">
-                  Lagerstatus
-                </p>
-                <p className="mt-1 text-lg font-black">{getHealthLabel(healthScore)}</p>
+        <section className="mt-5 rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-black">
+              {editingItem ? "Produkt bearbeiten" : "Schnelle Eingabe"}
+            </h2>
+
+            {editingItem ? (
+              <button
+                onClick={() => {
+                  setEditingItem(null);
+                  setQuickForm(EMPTY_FORM);
+                }}
+                className="rounded-full bg-stone-100 px-3 py-1 text-xs font-bold text-stone-700"
+              >
+                Neu
+              </button>
+            ) : null}
+          </div>
+
+          <div className="relative mt-4">
+            <label className="text-xs font-bold uppercase tracking-wide text-stone-500">
+              Produkt
+            </label>
+
+            <input
+              value={quickForm.item_name}
+              onChange={(e) => {
+                setQuickForm({
+                  ...quickForm,
+                  item_name: e.target.value,
+                  category: guessCategory(e.target.value),
+                });
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              placeholder="Produkt suchen oder neu eingeben..."
+              className="mt-1 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-base font-semibold outline-none focus:border-[#1f4d2b]"
+            />
+
+            {showSuggestions && (
+              <div className="absolute z-30 mt-2 max-h-56 w-full overflow-y-auto rounded-2xl border border-stone-200 bg-white shadow-xl">
+                {filteredSuggestions.length === 0 ? (
+                  <button
+                    onClick={() => setShowSuggestions(false)}
+                    className="w-full px-4 py-3 text-left text-sm text-stone-500"
+                  >
+                    Neues Produkt verwenden
+                  </button>
+                ) : (
+                  filteredSuggestions.map((name) => (
+                    <button
+                      key={name}
+                      onClick={() => {
+                        setQuickForm({
+                          ...quickForm,
+                          item_name: name,
+                          category: guessCategory(name),
+                        });
+                        setShowSuggestions(false);
+                      }}
+                      className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold hover:bg-stone-50"
+                    >
+                      <span>{name}</span>
+                      <span className="text-xs text-stone-400">Auswählen</span>
+                    </button>
+                  ))
+                )}
               </div>
-              <p className="text-3xl font-black">{healthScore}%</p>
-            </div>
+            )}
+          </div>
 
-            <div className="mt-3 h-3 overflow-hidden rounded-full bg-stone-200">
-              <div
-                className={`h-full rounded-full ${
-                  healthScore < 45
-                    ? "bg-red-500"
-                    : healthScore < 75
-                    ? "bg-amber-500"
-                    : "bg-[#2f7d46]"
-                }`}
-                style={{ width: `${healthScore}%` }}
-              />
+          <div className="mt-4">
+            <label className="text-xs font-bold uppercase tracking-wide text-stone-500">
+              Menge
+            </label>
+
+            <input
+              value={quickForm.quantity}
+              onChange={(e) =>
+                setQuickForm({ ...quickForm, quantity: e.target.value })
+              }
+              type="number"
+              step="0.1"
+              placeholder="z.B. 4.5"
+              className="mt-1 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-lg font-black outline-none focus:border-[#1f4d2b]"
+            />
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {QUICK_QTY.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => setQuickForm({ ...quickForm, quantity: q })}
+                  className={`rounded-full px-4 py-2 text-sm font-bold ${
+                    quickForm.quantity === q
+                      ? "bg-[#1f4d2b] text-white"
+                      : "bg-stone-100 text-stone-700"
+                  }`}
+                >
+                  {q}
+                </button>
+              ))}
             </div>
           </div>
 
-          <input
-            value={workerName}
-            onChange={(e) => {
-              setWorkerName(e.target.value);
-              localStorage.setItem("workerName", e.target.value);
-            }}
-            placeholder="Name eingeben"
-            className="mt-4 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-base font-medium outline-none focus:border-[#2f5d3a]"
-          />
+          <div className="mt-4">
+            <label className="text-xs font-bold uppercase tracking-wide text-stone-500">
+              Einheit
+            </label>
 
-          <input
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            placeholder="Produkt suchen..."
-            className="mt-3 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-base font-medium outline-none focus:border-[#2f5d3a]"
-          />
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {UNITS.map((unit) => (
+                <button
+                  key={unit}
+                  onClick={() => setQuickForm({ ...quickForm, unit })}
+                  className={`rounded-2xl px-3 py-3 text-sm font-bold ${
+                    quickForm.unit === unit
+                      ? "bg-[#1f4d2b] text-white"
+                      : "bg-stone-100 text-stone-700"
+                  }`}
+                >
+                  {unit}
+                </button>
+              ))}
+            </div>
+          </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {FILTERS.map((filter) => (
-              <button
-                key={filter}
-                onClick={() => setActiveFilter(filter)}
-                className={`rounded-full px-4 py-2 text-sm font-bold ${
-                  activeFilter === filter
-                    ? "bg-[#1f4d2b] text-white"
-                    : "bg-stone-100 text-stone-600"
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
+          <div className="mt-4">
+            <label className="text-xs font-bold uppercase tracking-wide text-stone-500">
+              Notiz
+            </label>
+
+            <input
+              value={quickForm.note}
+              onChange={(e) =>
+                setQuickForm({ ...quickForm, note: e.target.value })
+              }
+              placeholder="Optional: z.B. geöffnet, neu geliefert..."
+              className="mt-1 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none focus:border-[#1f4d2b]"
+            />
           </div>
 
           <button
-            onClick={openAddForm}
-            className="mt-4 w-full rounded-2xl bg-[#1f4d2b] px-4 py-3 text-base font-bold text-white shadow-sm active:scale-[0.99]"
+            onClick={quickSave}
+            className="mt-5 w-full rounded-2xl bg-[#1f4d2b] px-4 py-4 text-base font-black text-white shadow-sm active:scale-[0.99]"
           >
-            + Produkt hinzufügen
+            {editingItem ? "Änderung speichern" : "Bestand speichern"}
           </button>
         </section>
 
-        {showForm && (
-          <section className="mt-5 rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
-            <h2 className="text-2xl font-black">
-              {editingItem ? "Produkt bearbeiten" : "Produkt hinzufügen"}
-            </h2>
-
-            <div className="mt-4 space-y-3">
-              <input value={formData.item_name} onChange={(e) => setFormData({ ...formData, item_name: e.target.value })} placeholder="Produktname" className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
-              <input value={formData.product_number} onChange={(e) => setFormData({ ...formData, product_number: e.target.value })} placeholder="Produktnummer" className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
-
-              <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none">
-                <option value="Vegetables">Gemüse</option>
-                <option value="Dairy">Milchprodukte</option>
-                <option value="Other">Sonstiges</option>
-              </select>
-
-              <input value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} placeholder="Menge" type="number" className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
-              <input value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} placeholder="Einheit: kg, Packung, Box" className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
-              <input value={formData.product_date} onChange={(e) => setFormData({ ...formData, product_date: e.target.value })} type="date" className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
-              <input value={formData.expiry_date} onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })} type="date" className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
-              <textarea value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} placeholder="Notiz" className="min-h-[90px] w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <button onClick={closeForm} className="rounded-2xl bg-stone-200 px-4 py-3 font-bold text-stone-700">
-                Abbrechen
-              </button>
-              <button onClick={handleSaveProduct} className="rounded-2xl bg-[#1f4d2b] px-4 py-3 font-bold text-white">
-                Speichern
-              </button>
-            </div>
-          </section>
-        )}
-
-        <div className="mt-5 space-y-4">
+        <section className="mt-5 space-y-3">
           {loading ? (
-            <div className="rounded-[28px] bg-white p-6 text-center shadow-sm">Produkte werden geladen...</div>
-          ) : filteredItems.length === 0 ? (
-            <div className="rounded-[28px] bg-white p-6 text-center shadow-sm">Keine Produkte gefunden.</div>
+            <div className="rounded-[28px] bg-white p-6 text-center shadow-sm">
+              Produkte werden geladen...
+            </div>
+          ) : items.length === 0 ? (
+            <div className="rounded-[28px] bg-white p-6 text-center shadow-sm">
+              Keine Produkte gefunden.
+            </div>
           ) : (
-            filteredItems.map((item) => {
+            items.map((item) => {
               const qty = Number(item.quantity);
+              const safeQty = Number.isNaN(qty) ? 0 : qty;
 
               return (
-                <article key={item.id} className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
-                  <h2 className="text-2xl font-black">{item.item_name}</h2>
+                <article
+                  key={item.id}
+                  className="rounded-[24px] border border-stone-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-xl font-black">{item.item_name}</h3>
+                      <p className="mt-1 text-sm font-semibold text-stone-700">
+                        {item.quantity} {item.unit || ""}
+                      </p>
+                    </div>
 
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-[#e8f2eb] px-3 py-1 text-sm font-bold text-[#1f4d2b]">
-                      {item.quantity} {item.unit}
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-bold ${getStatusClass(
+                        safeQty
+                      )}`}
+                    >
+                      {getStatus(safeQty)}
                     </span>
-
-                    <span className="rounded-full bg-stone-100 px-3 py-1 text-sm font-semibold text-stone-600">
-                      {item.category || "Other"}
-                    </span>
-
-                    {qty <= 2 ? (
-                      <span className="rounded-full bg-red-50 px-3 py-1 text-sm font-bold text-red-700">
-                        Niedrig
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-[#eef6f0] px-3 py-1 text-sm font-semibold text-[#2f7d46]">
-                        Bestand OK
-                      </span>
-                    )}
                   </div>
 
-                  <div className="mt-4 rounded-2xl bg-stone-50 p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="text-xs font-bold uppercase tracking-wide text-stone-500">Bestandsanzeige</p>
-                      <p className="text-sm font-bold">{qty}/10</p>
-                    </div>
-
-                    <div className="h-3 overflow-hidden rounded-full bg-stone-200">
-                      <div className={`h-full rounded-full ${getMeterColor(qty)}`} style={{ width: `${getMeterPercent(qty)}%` }} />
-                    </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-200">
+                    <div
+                      className={`h-full rounded-full ${getMeterColor(safeQty)}`}
+                      style={{
+                        width: `${getMeterPercent(safeQty)}%`,
+                        transition: "width 0.4s ease",
+                      }}
+                    />
                   </div>
 
                   {item.note ? (
-                    <div className="mt-4 rounded-2xl bg-[#fff8df] px-4 py-3">
-                      <p className="text-sm font-medium text-stone-700">{item.note}</p>
-                    </div>
+                    <p className="mt-3 rounded-xl bg-[#fff8df] px-3 py-2 text-xs font-medium text-stone-700">
+                      {item.note}
+                    </p>
                   ) : null}
 
-                  <div className="mt-4 rounded-2xl bg-stone-50 px-4 py-3">
-                    <p className="text-xs uppercase tracking-wide text-stone-500">Aktualisiert von</p>
-                    <p className="mt-1 text-sm font-bold">{item.updated_by || "-"}</p>
+                  <div className="mt-3 rounded-xl bg-stone-50 px-3 py-2">
+                    <p className="text-xs text-stone-500">Aktualisiert von</p>
+                    <p className="text-sm font-bold">
+                      {item.updated_by || "-"}
+                    </p>
                     {item.updated_at ? (
                       <p className="mt-1 text-xs text-stone-500">
                         {new Date(item.updated_at).toLocaleString("de-DE")}
@@ -449,19 +564,33 @@ export default function Home() {
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-3">
-                    <button onClick={() => updateQuantity(item, -1)} className="h-14 rounded-2xl border border-red-200 bg-red-50 text-lg font-bold text-red-700 active:scale-[0.98]">
+                    <button
+                      onClick={() => updateQuantity(item, -1)}
+                      className="h-12 rounded-2xl border border-red-200 bg-red-50 font-bold text-red-700"
+                    >
                       − Minus
                     </button>
-                    <button onClick={() => updateQuantity(item, 1)} className="h-14 rounded-2xl bg-[#1f4d2b] text-lg font-bold text-white active:scale-[0.98]">
+
+                    <button
+                      onClick={() => updateQuantity(item, 1)}
+                      className="h-12 rounded-2xl bg-[#1f4d2b] font-bold text-white"
+                    >
                       + Plus
                     </button>
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-3">
-                    <button onClick={() => openEditForm(item)} className="rounded-2xl bg-stone-800 px-4 py-3 font-bold text-white">
+                    <button
+                      onClick={() => openEdit(item)}
+                      className="rounded-2xl bg-stone-800 px-4 py-3 font-bold text-white"
+                    >
                       Bearbeiten
                     </button>
-                    <button onClick={() => handleDeleteProduct(item)} className="rounded-2xl border border-red-200 bg-white px-4 py-3 font-bold text-red-700">
+
+                    <button
+                      onClick={() => deleteItem(item)}
+                      className="rounded-2xl border border-red-200 bg-white px-4 py-3 font-bold text-red-700"
+                    >
                       Löschen
                     </button>
                   </div>
@@ -469,7 +598,7 @@ export default function Home() {
               );
             })
           )}
-        </div>
+        </section>
 
         <BottomNav />
       </div>
