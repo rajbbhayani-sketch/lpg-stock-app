@@ -23,20 +23,20 @@ type Shelf = {
 
 const SHELVES: Shelf[] = [
   {
-    title: "Gemüse Regal",
-    subtitle: "Frische Zutaten",
+    title: "Vegetable shelf",
+    subtitle: "Fresh ingredients",
     category: "Vegetables",
     icon: "🥬",
   },
   {
-    title: "Milchprodukte Regal",
-    subtitle: "Kühlwaren",
+    title: "Dairy shelf",
+    subtitle: "Cold products",
     category: "Dairy",
     icon: "🧀",
   },
   {
-    title: "Sonstiges Regal",
-    subtitle: "Weitere Lagerware",
+    title: "Other shelf",
+    subtitle: "Kitchen storage",
     category: "Other",
     icon: "📦",
   },
@@ -60,8 +60,8 @@ function productIcon(name: string, category?: string | null) {
 }
 
 function stockStatus(qty: number) {
-  if (qty <= 0) return { label: "Leer", color: "bg-red-100 text-red-700" };
-  if (qty <= 2) return { label: "Niedrig", color: "bg-amber-100 text-amber-800" };
+  if (qty <= 0) return { label: "Empty", color: "bg-red-100 text-red-700" };
+  if (qty <= 2) return { label: "Low", color: "bg-amber-100 text-amber-800" };
   return { label: "OK", color: "bg-[#e8f2eb] text-[#1f4d2b]" };
 }
 
@@ -136,32 +136,32 @@ export default function CurrentStockPage() {
                 LPG BioMarkt
               </p>
               <h1 className="mt-1 text-3xl font-black tracking-tight">
-                Aktueller Bestand
+                Current Stock
               </h1>
               <p className="mt-1 text-sm text-stone-500">
-                Übersicht der Küchenregale
+                Kitchen shelf overview
               </p>
             </div>
 
             <div className="rounded-2xl bg-[#f5f1e8] px-3 py-2 text-right">
-              <p className="text-[11px] text-stone-500">Heute</p>
+              <p className="text-[11px] text-stone-500">Today</p>
               <p className="text-sm font-bold">{todayText}</p>
             </div>
           </div>
 
           <div className="mt-5 grid grid-cols-3 gap-2">
             <div className="rounded-2xl bg-[#1f4d2b] p-3 text-white">
-              <p className="text-[11px] text-white/75">Produkte</p>
+              <p className="text-[11px] text-white/75">Products</p>
               <p className="mt-1 text-2xl font-black">{items.length}</p>
             </div>
 
             <div className="rounded-2xl bg-stone-800 p-3 text-white">
-              <p className="text-[11px] text-white/75">Menge</p>
+              <p className="text-[11px] text-white/75">Total</p>
               <p className="mt-1 text-2xl font-black">{totalQuantity}</p>
             </div>
 
             <div className="rounded-2xl bg-[#d6a21e] p-3 text-white">
-              <p className="text-[11px] text-white/75">Niedrig</p>
+              <p className="text-[11px] text-white/75">Low</p>
               <p className="mt-1 text-2xl font-black">{lowStockCount}</p>
             </div>
           </div>
@@ -169,7 +169,7 @@ export default function CurrentStockPage() {
 
         {loading ? (
           <section className="mt-5 rounded-[28px] bg-white p-6 text-center shadow-sm">
-            Bestand wird geladen...
+            Loading stock...
           </section>
         ) : (
           <div className="mt-5 space-y-5">
@@ -201,25 +201,27 @@ export default function CurrentStockPage() {
 
                     <div className="mt-3 flex items-center gap-2">
                       <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-bold text-stone-700">
-                        {shelfItems.length} Produkte
+                        {shelfItems.length} products
                       </span>
                       <span className="rounded-full bg-[#e8f2eb] px-3 py-1 text-xs font-bold text-[#1f4d2b]">
-                        Gesamt: {shelfQty}
+                        Total: {shelfQty}
                       </span>
                     </div>
                   </div>
 
-                  <div className="relative px-5 py-5">
-                    <div className="absolute left-4 right-4 top-8 h-2 rounded-full bg-[#9b7653]" />
-                    <div className="absolute left-4 right-4 top-[132px] h-2 rounded-full bg-[#9b7653]" />
-                    <div className="absolute left-4 right-4 bottom-8 h-2 rounded-full bg-[#9b7653]" />
-                    <div className="absolute left-7 top-7 bottom-7 w-2 rounded-full bg-[#6f5138]" />
-                    <div className="absolute right-7 top-7 bottom-7 w-2 rounded-full bg-[#6f5138]" />
+                  <div className="relative px-5 py-6">
+                    {/* Wooden shelf drawing */}
+                    <div className="absolute left-4 right-4 top-10 h-3 rounded bg-[#8b5e3c]" />
+                    <div className="absolute left-4 right-4 top-[150px] h-3 rounded bg-[#8b5e3c]" />
+                    <div className="absolute left-4 right-4 bottom-10 h-3 rounded bg-[#8b5e3c]" />
+
+                    <div className="absolute left-6 top-8 bottom-8 w-2 rounded bg-[#5c3b24]" />
+                    <div className="absolute right-6 top-8 bottom-8 w-2 rounded bg-[#5c3b24]" />
 
                     <div className="relative z-10 space-y-3">
                       {shelfItems.length === 0 ? (
                         <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-8 text-center text-sm text-stone-500">
-                          Keine Produkte in diesem Regal.
+                          No products on this shelf.
                         </div>
                       ) : (
                         shelfItems.map((item) => {
@@ -229,32 +231,31 @@ export default function CurrentStockPage() {
                           return (
                             <div
                               key={item.id}
-                              className="rounded-2xl border border-stone-200 bg-white/95 p-4 shadow-sm"
+                              className="rounded-xl border border-stone-200 bg-white p-3 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
                             >
                               <div className="flex items-center gap-3">
-                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#f5f1e8] text-3xl">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f0ebe3] text-xl">
                                   {productIcon(item.item_name, item.category)}
                                 </div>
 
                                 <div className="min-w-0 flex-1">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div>
-                                      <h3 className="text-lg font-black leading-tight">
-                                        {item.item_name}
-                                      </h3>
-                                      <p className="mt-1 text-sm text-stone-500">
-                                        {item.quantity} {item.unit || ""}
-                                      </p>
-                                    </div>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <h3 className="truncate text-base font-bold">
+                                      {item.item_name}
+                                    </h3>
 
                                     <span
-                                      className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${status.color}`}
+                                      className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${status.color}`}
                                     >
                                       {status.label}
                                     </span>
                                   </div>
 
-                                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-200">
+                                  <p className="mt-1 text-xs text-stone-500">
+                                    {item.quantity} {item.unit || ""}
+                                  </p>
+
+                                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-200">
                                     <div
                                       className={`h-full rounded-full ${meterColor(qty)}`}
                                       style={{ width: `${meterPercent(qty)}%` }}
@@ -262,9 +263,9 @@ export default function CurrentStockPage() {
                                   </div>
 
                                   {item.note ? (
-                                    <p className="mt-2 rounded-xl bg-[#fff8df] px-3 py-2 text-xs font-medium text-stone-700">
+                                    <div className="mt-2 rounded-md bg-[#f7f1df] px-2 py-1 text-xs text-stone-700">
                                       {item.note}
-                                    </p>
+                                    </div>
                                   ) : null}
                                 </div>
                               </div>
