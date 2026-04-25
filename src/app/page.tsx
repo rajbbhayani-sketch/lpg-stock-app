@@ -20,6 +20,7 @@ type StockItem = {
 
 const UNITS = ["kg", "g", "Box", "Packung", "Stück", "Liter"];
 const QUICK_QTY = ["0.5", "1", "2", "3", "5", "10"];
+const QUICK_ADD = [1, 2, 5];
 
 const COMMON_PRODUCTS = [
   "Tomate",
@@ -59,9 +60,6 @@ const EMPTY_FORM = {
   unit: "kg",
   note: "",
   category: "Other",
-  product_number: "",
-  product_date: "",
-  expiry_date: "",
 };
 
 function guessCategory(name: string) {
@@ -98,6 +96,19 @@ function guessCategory(name: string) {
   return "Other";
 }
 
+function isUpdatedToday(dateValue?: string | null) {
+  if (!dateValue) return false;
+
+  const updated = new Date(dateValue);
+  const today = new Date();
+
+  return (
+    updated.getDate() === today.getDate() &&
+    updated.getMonth() === today.getMonth() &&
+    updated.getFullYear() === today.getFullYear()
+  );
+}
+
 export default function Home() {
   const [items, setItems] = useState<StockItem[]>([]);
   const [workerName, setWorkerName] = useState("");
@@ -106,7 +117,6 @@ export default function Home() {
 
   const [quickForm, setQuickForm] = useState(EMPTY_FORM);
   const [showSuggestions, setShowSuggestions] = useState(false);
-
   const [editingItem, setEditingItem] = useState<StockItem | null>(null);
 
   useEffect(() => {
@@ -158,7 +168,19 @@ export default function Home() {
     );
   }, [productSuggestions, quickForm.item_name]);
 
-  const lowStockCount = items.filter((i) => Number(i.quantity) <= 2).length;
+  const stats = useMemo(() => {
+    const notUpdatedToday = items.filter((item) => !isUpdatedToday(item.updated_at));
+    const lowItems = items.filter((item) => Number(item.quantity) <= 2);
+    const emptyItems = items.filter((item) => Number(item.quantity) <= 0);
+
+    return {
+      totalProducts: items.length,
+      updatedToday: items.length - notUpdatedToday.length,
+      notUpdatedToday,
+      lowItems,
+      emptyItems,
+    };
+  }, [items]);
 
   async function saveHistory(
     itemName: string,
@@ -227,6 +249,7 @@ export default function Home() {
     }
 
     setQuickForm(EMPTY_FORM);
+    setEditingItem(null);
     setShowSuggestions(false);
     await loadItems();
   }
@@ -267,9 +290,6 @@ export default function Home() {
       unit: item.unit || "kg",
       note: item.note || "",
       category: item.category || "Other",
-      product_number: item.product_number || "",
-      product_date: item.product_date || "",
-      expiry_date: item.expiry_date || "",
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -298,13 +318,15 @@ export default function Home() {
     return "OK";
   }
 
-  function getStatusClass(qty: number) {
+  function getStatusClass(qty: number, updatedToday: boolean) {
+    if (!updatedToday) return "bg-red-50 text-red-700";
     if (qty <= 0) return "bg-red-50 text-red-700";
     if (qty <= 2) return "bg-amber-50 text-amber-800";
     return "bg-[#e8f2eb] text-[#1f4d2b]";
   }
 
-  function getMeterColor(qty: number) {
+  function getMeterColor(qty: number, updatedToday: boolean) {
+    if (!updatedToday) return "bg-red-500";
     if (qty <= 0) return "bg-red-500";
     if (qty <= 2) return "bg-amber-500";
     return "bg-[#2f7d46]";
@@ -337,17 +359,50 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-[#1f4d2b] p-4 text-white">
-              <p className="text-xs text-white/75">Produkte</p>
-              <p className="mt-1 text-3xl font-black">{items.length}</p>
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            <div className="rounded-2xl bg-[#1f4d2b] p-3 text-white">
+              <p className="text-[11px] text-white/75">Produkte</p>
+              <p className="mt-1 text-2xl font-black">{stats.totalProducts}</p>
             </div>
 
-            <div className="rounded-2xl bg-[#d6a21e] p-4 text-white">
-              <p className="text-xs text-white/75">Wenig / Leer</p>
-              <p className="mt-1 text-3xl font-black">{lowStockCount}</p>
+            <div className="rounded-2xl bg-[#2f7d46] p-3 text-white">
+              <p className="text-[11px] text-white/75">Heute</p>
+              <p className="mt-1 text-2xl font-black">{stats.updatedToday}</p>
+            </div>
+
+            <div className="rounded-2xl bg-[#d6a21e] p-3 text-white">
+              <p className="text-[11px] text-white/75">Wenig</p>
+              <p className="mt-1 text-2xl font-black">{stats.lowItems.length}</p>
             </div>
           </div>
+
+          {stats.notUpdatedToday.length > 0 ? (
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-sm font-black text-amber-900">
+                ⚠️ {stats.notUpdatedToday.length} Produkt(e) heute noch nicht aktualisiert
+              </p>
+              <p className="mt-1 text-xs text-amber-800">
+                Bitte Bestand prüfen und speichern.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-2xl border border-[#d5eadb] bg-[#e8f2eb] px-4 py-3">
+              <p className="text-sm font-black text-[#1f4d2b]">
+                ✅ Alle Produkte wurden heute aktualisiert
+              </p>
+            </div>
+          )}
+
+          {stats.lowItems.length > 0 ? (
+            <div className="mt-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
+              <p className="text-sm font-black text-red-700">
+                Niedriger Bestand
+              </p>
+              <p className="mt-1 text-xs text-red-700">
+                {stats.lowItems.map((item) => item.item_name).join(", ")}
+              </p>
+            </div>
+          ) : null}
         </section>
 
         <section className="mt-5 rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
@@ -486,7 +541,7 @@ export default function Home() {
               onChange={(e) =>
                 setQuickForm({ ...quickForm, note: e.target.value })
               }
-              placeholder="Optional: z.B. geöffnet, neu geliefert..."
+              placeholder="Optional: geöffnet, neu geliefert..."
               className="mt-1 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none focus:border-[#1f4d2b]"
             />
           </div>
@@ -497,6 +552,38 @@ export default function Home() {
           >
             {editingItem ? "Änderung speichern" : "Bestand speichern"}
           </button>
+        </section>
+
+        <section className="mt-5 rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
+          <h2 className="text-2xl font-black">Einkaufsliste</h2>
+          <p className="mt-1 text-sm text-stone-500">
+            Automatisch aus leerem oder niedrigem Bestand
+          </p>
+
+          <div className="mt-4 space-y-2">
+            {stats.lowItems.length === 0 ? (
+              <div className="rounded-2xl bg-[#e8f2eb] px-4 py-3 text-sm font-bold text-[#1f4d2b]">
+                Keine Produkte auf der Einkaufsliste.
+              </div>
+            ) : (
+              stats.lowItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between rounded-2xl bg-stone-50 px-4 py-3"
+                >
+                  <div>
+                    <p className="font-black">{item.item_name}</p>
+                    <p className="text-xs text-stone-500">
+                      Aktuell: {item.quantity} {item.unit || ""}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
+                    Kaufen
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
         </section>
 
         <section className="mt-5 space-y-3">
@@ -512,6 +599,7 @@ export default function Home() {
             items.map((item) => {
               const qty = Number(item.quantity);
               const safeQty = Number.isNaN(qty) ? 0 : qty;
+              const updatedToday = isUpdatedToday(item.updated_at);
 
               return (
                 <article
@@ -528,16 +616,20 @@ export default function Home() {
 
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-bold ${getStatusClass(
-                        safeQty
+                        safeQty,
+                        updatedToday
                       )}`}
                     >
-                      {getStatus(safeQty)}
+                      {!updatedToday ? "Nicht heute" : getStatus(safeQty)}
                     </span>
                   </div>
 
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-200">
                     <div
-                      className={`h-full rounded-full ${getMeterColor(safeQty)}`}
+                      className={`h-full rounded-full ${getMeterColor(
+                        safeQty,
+                        updatedToday
+                      )}`}
                       style={{
                         width: `${getMeterPercent(safeQty)}%`,
                         transition: "width 0.4s ease",
@@ -563,7 +655,19 @@ export default function Home() {
                     ) : null}
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    {QUICK_ADD.map((amount) => (
+                      <button
+                        key={amount}
+                        onClick={() => updateQuantity(item, amount)}
+                        className="h-11 rounded-2xl bg-[#e8f2eb] text-sm font-black text-[#1f4d2b]"
+                      >
+                        +{amount}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-3">
                     <button
                       onClick={() => updateQuantity(item, -1)}
                       className="h-12 rounded-2xl border border-red-200 bg-red-50 font-bold text-red-700"
