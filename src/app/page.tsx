@@ -18,7 +18,7 @@ type StockItem = {
   expiry_date?: string | null;
 };
 
-const FILTERS = ["All", "Vegetables", "Dairy", "Other"];
+const FILTERS = ["Alle", "Vegetables", "Dairy", "Other"];
 
 const EMPTY_FORM = {
   item_name: "",
@@ -35,7 +35,7 @@ export default function Home() {
   const [items, setItems] = useState<StockItem[]>([]);
   const [workerName, setWorkerName] = useState("");
   const [searchText, setSearchText] = useState("");
-  const [activeFilter, setActiveFilter] = useState("All");
+  const [activeFilter, setActiveFilter] = useState("Alle");
   const [todayText, setTodayText] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<StockItem | null>(null);
@@ -47,7 +47,7 @@ export default function Home() {
     if (savedName) setWorkerName(savedName);
 
     setTodayText(
-      new Date().toLocaleDateString("en-GB", {
+      new Date().toLocaleDateString("de-DE", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -66,8 +66,7 @@ export default function Home() {
       .order("item_name", { ascending: true });
 
     if (error) {
-      console.error("loadItems error:", error);
-      alert(`loadItems error: ${error.message}`);
+      alert(`Fehler beim Laden: ${error.message}`);
       setItems([]);
       setLoading(false);
       return;
@@ -77,35 +76,27 @@ export default function Home() {
     setLoading(false);
   }
 
-  async function saveHistory(
-    itemName: string,
-    oldQuantity: string,
-    newQuantity: string
-  ) {
+  async function saveHistory(itemName: string, oldQuantity: string, newQuantity: string) {
     if (!workerName.trim()) return;
 
-    const { error } = await supabase.from("stock_history").insert({
+    await supabase.from("stock_history").insert({
       item_name: itemName,
       old_quantity: oldQuantity,
       new_quantity: newQuantity,
       changed_by: workerName.trim(),
       changed_at: new Date().toISOString(),
     });
-
-    if (error) {
-      console.error("saveHistory error:", error);
-    }
   }
 
   async function updateQuantity(item: StockItem, change: number) {
     if (!workerName.trim()) {
-      alert("Please enter your name first.");
+      alert("Bitte zuerst Namen eingeben.");
       return;
     }
 
     const currentQty = Number(item.quantity);
     if (Number.isNaN(currentQty)) {
-      alert("Quantity is not a number.");
+      alert("Menge ist keine Zahl.");
       return;
     }
 
@@ -121,8 +112,7 @@ export default function Home() {
       .eq("id", item.id);
 
     if (error) {
-      console.error("updateQuantity error:", error);
-      alert(`updateQuantity error: ${error.message}`);
+      alert(`Fehler beim Aktualisieren: ${error.message}`);
       return;
     }
 
@@ -159,17 +149,17 @@ export default function Home() {
 
   async function handleSaveProduct() {
     if (!workerName.trim()) {
-      alert("Please enter your name first.");
+      alert("Bitte zuerst Namen eingeben.");
       return;
     }
 
     if (!formData.item_name.trim()) {
-      alert("Product name is required.");
+      alert("Produktname ist erforderlich.");
       return;
     }
 
     if (Number.isNaN(Number(formData.quantity))) {
-      alert("Quantity must be a number.");
+      alert("Menge muss eine Zahl sein.");
       return;
     }
 
@@ -187,14 +177,10 @@ export default function Home() {
     };
 
     if (editingItem) {
-      const { error } = await supabase
-        .from("stock_items")
-        .update(payload)
-        .eq("id", editingItem.id);
+      const { error } = await supabase.from("stock_items").update(payload).eq("id", editingItem.id);
 
       if (error) {
-        console.error("handleSaveProduct update error:", error);
-        alert(`Save error: ${error.message}`);
+        alert(`Speichern fehlgeschlagen: ${error.message}`);
         return;
       }
 
@@ -203,8 +189,7 @@ export default function Home() {
       const { error } = await supabase.from("stock_items").insert(payload);
 
       if (error) {
-        console.error("handleSaveProduct insert error:", error);
-        alert(`Add product error: ${error.message}`);
+        alert(`Produkt konnte nicht hinzugefügt werden: ${error.message}`);
         return;
       }
 
@@ -216,21 +201,17 @@ export default function Home() {
   }
 
   async function handleDeleteProduct(item: StockItem) {
-    const confirmDelete = window.confirm(`Delete ${item.item_name}?`);
-    if (!confirmDelete) return;
+    const ok = window.confirm(`${item.item_name} wirklich löschen?`);
+    if (!ok) return;
 
-    const { error } = await supabase
-      .from("stock_items")
-      .delete()
-      .eq("id", item.id);
+    const { error } = await supabase.from("stock_items").delete().eq("id", item.id);
 
     if (error) {
-      console.error("handleDeleteProduct error:", error);
-      alert(`Delete error: ${error.message}`);
+      alert(`Löschen fehlgeschlagen: ${error.message}`);
       return;
     }
 
-    await saveHistory(item.item_name, item.quantity, "DELETED");
+    await saveHistory(item.item_name, item.quantity, "GELÖSCHT");
     await loadItems();
   }
 
@@ -238,10 +219,10 @@ export default function Home() {
     return Math.min((qty / 10) * 100, 100);
   }
 
-  function getMeterStyle(qty: number) {
-    if (qty <= 2) return "bg-gradient-to-r from-red-500 to-orange-400";
-    if (qty <= 5) return "bg-gradient-to-r from-yellow-400 to-orange-400";
-    return "bg-gradient-to-r from-emerald-400 to-green-500";
+  function getMeterColor(qty: number) {
+    if (qty <= 2) return "bg-red-500";
+    if (qty <= 5) return "bg-amber-500";
+    return "bg-[#2f7d46]";
   }
 
   function getHealthScore() {
@@ -260,20 +241,15 @@ export default function Home() {
   }
 
   function getHealthLabel(score: number) {
-    if (score < 45) return "Needs attention";
-    if (score < 75) return "Medium";
-    return "Good";
+    if (score < 45) return "Aufmerksamkeit nötig";
+    if (score < 75) return "Mittel";
+    return "Gut";
   }
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      const matchesSearch = item.item_name
-        .toLowerCase()
-        .includes(searchText.toLowerCase());
-
-      const matchesFilter =
-        activeFilter === "All" || (item.category || "Other") === activeFilter;
-
+      const matchesSearch = item.item_name.toLowerCase().includes(searchText.toLowerCase());
+      const matchesFilter = activeFilter === "Alle" || (item.category || "Other") === activeFilter;
       return matchesSearch && matchesFilter;
     });
   }, [items, searchText, activeFilter]);
@@ -282,62 +258,55 @@ export default function Home() {
   const healthScore = getHealthScore();
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#eefaf2] via-[#f3f8ff] to-[#fff5eb] pb-28 text-slate-900">
+    <main className="min-h-screen bg-[#f5f1e8] pb-28 text-stone-900">
       <div className="mx-auto max-w-md px-4 py-4">
-        <div className="rounded-[30px] bg-white/90 p-4 shadow-xl ring-1 ring-black/5">
+        <section className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-600">
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#2f5d3a]">
                 LPG BioMarkt
               </p>
-              <h1 className="mt-1 text-4xl font-black tracking-tight text-slate-900">
-                Storage
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                Live smart stock update
-              </p>
+              <h1 className="mt-1 text-3xl font-black tracking-tight">Lagerverwaltung</h1>
+              <p className="mt-1 text-sm text-stone-500">Täglicher Bestand für die Küche</p>
             </div>
 
-            <div className="rounded-2xl bg-slate-100 px-3 py-2 text-right">
-              <p className="text-[11px] text-slate-500">Today</p>
-              <p className="text-sm font-bold text-slate-800">{todayText}</p>
+            <div className="rounded-2xl bg-[#f5f1e8] px-3 py-2 text-right">
+              <p className="text-[11px] text-stone-500">Heute</p>
+              <p className="text-sm font-bold">{todayText}</p>
             </div>
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-gradient-to-r from-emerald-500 to-green-500 p-4 text-white shadow">
-              <p className="text-xs text-white/80">Products</p>
-              <p className="mt-1 text-3xl font-extrabold">{items.length}</p>
+            <div className="rounded-2xl bg-[#1f4d2b] p-4 text-white">
+              <p className="text-xs text-white/75">Produkte</p>
+              <p className="mt-1 text-3xl font-black">{items.length}</p>
             </div>
 
-            <div className="rounded-2xl bg-gradient-to-r from-orange-400 to-amber-400 p-4 text-white shadow">
-              <p className="text-xs text-white/80">Low stock</p>
-              <p className="mt-1 text-3xl font-extrabold">{lowStockCount}</p>
+            <div className="rounded-2xl bg-[#d6a21e] p-4 text-white">
+              <p className="text-xs text-white/80">Niedriger Bestand</p>
+              <p className="mt-1 text-3xl font-black">{lowStockCount}</p>
             </div>
           </div>
 
-          <div className="mt-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100">
+          <div className="mt-4 rounded-2xl bg-stone-50 p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Live Storage Health
+                <p className="text-xs font-bold uppercase tracking-wide text-stone-500">
+                  Lagerstatus
                 </p>
-                <p className="mt-1 text-lg font-black text-slate-900">
-                  {getHealthLabel(healthScore)}
-                </p>
+                <p className="mt-1 text-lg font-black">{getHealthLabel(healthScore)}</p>
               </div>
-
-              <p className="text-3xl font-black text-slate-900">{healthScore}%</p>
+              <p className="text-3xl font-black">{healthScore}%</p>
             </div>
 
-            <div className="mt-3 h-4 overflow-hidden rounded-full bg-slate-200">
+            <div className="mt-3 h-3 overflow-hidden rounded-full bg-stone-200">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${
+                className={`h-full rounded-full ${
                   healthScore < 45
-                    ? "bg-gradient-to-r from-red-500 to-orange-400"
+                    ? "bg-red-500"
                     : healthScore < 75
-                    ? "bg-gradient-to-r from-yellow-400 to-orange-400"
-                    : "bg-gradient-to-r from-emerald-400 via-green-500 to-teal-500"
+                    ? "bg-amber-500"
+                    : "bg-[#2f7d46]"
                 }`}
                 style={{ width: `${healthScore}%` }}
               />
@@ -350,15 +319,15 @@ export default function Home() {
               setWorkerName(e.target.value);
               localStorage.setItem("workerName", e.target.value);
             }}
-            placeholder="Your name"
-            className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base font-medium outline-none"
+            placeholder="Name eingeben"
+            className="mt-4 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-base font-medium outline-none focus:border-[#2f5d3a]"
           />
 
           <input
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            placeholder="Search tomato, salad..."
-            className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base font-medium outline-none"
+            placeholder="Produkt suchen..."
+            className="mt-3 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-base font-medium outline-none focus:border-[#2f5d3a]"
           />
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -368,8 +337,8 @@ export default function Home() {
                 onClick={() => setActiveFilter(filter)}
                 className={`rounded-full px-4 py-2 text-sm font-bold ${
                   activeFilter === filter
-                    ? "bg-slate-900 text-white shadow"
-                    : "bg-slate-100 text-slate-600"
+                    ? "bg-[#1f4d2b] text-white"
+                    : "bg-stone-100 text-stone-600"
                 }`}
               >
                 {filter}
@@ -379,226 +348,124 @@ export default function Home() {
 
           <button
             onClick={openAddForm}
-            className="mt-4 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-3 text-base font-bold text-white shadow-lg"
+            className="mt-4 w-full rounded-2xl bg-[#1f4d2b] px-4 py-3 text-base font-bold text-white shadow-sm active:scale-[0.99]"
           >
-            + Add Product
+            + Produkt hinzufügen
           </button>
-        </div>
+        </section>
 
         {showForm && (
-          <div className="mt-5 rounded-[30px] bg-white/95 p-4 shadow-xl ring-1 ring-black/5">
-            <h2 className="text-2xl font-black text-slate-900">
-              {editingItem ? "Edit Product" : "Add Product"}
+          <section className="mt-5 rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
+            <h2 className="text-2xl font-black">
+              {editingItem ? "Produkt bearbeiten" : "Produkt hinzufügen"}
             </h2>
 
             <div className="mt-4 space-y-3">
-              <input
-                value={formData.item_name}
-                onChange={(e) =>
-                  setFormData({ ...formData, item_name: e.target.value })
-                }
-                placeholder="Product name"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
-              />
+              <input value={formData.item_name} onChange={(e) => setFormData({ ...formData, item_name: e.target.value })} placeholder="Produktname" className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
+              <input value={formData.product_number} onChange={(e) => setFormData({ ...formData, product_number: e.target.value })} placeholder="Produktnummer" className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
 
-              <input
-                value={formData.product_number}
-                onChange={(e) =>
-                  setFormData({ ...formData, product_number: e.target.value })
-                }
-                placeholder="Product number"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
-              />
-
-              <select
-                value={formData.category}
-                onChange={(e) =>
-                  setFormData({ ...formData, category: e.target.value })
-                }
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
-              >
-                <option value="Vegetables">Vegetables</option>
-                <option value="Dairy">Dairy</option>
-                <option value="Other">Other</option>
+              <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none">
+                <option value="Vegetables">Gemüse</option>
+                <option value="Dairy">Milchprodukte</option>
+                <option value="Other">Sonstiges</option>
               </select>
 
-              <input
-                value={formData.quantity}
-                onChange={(e) =>
-                  setFormData({ ...formData, quantity: e.target.value })
-                }
-                placeholder="Quantity"
-                type="number"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
-              />
-
-              <input
-                value={formData.unit}
-                onChange={(e) =>
-                  setFormData({ ...formData, unit: e.target.value })
-                }
-                placeholder="Unit (kg, pack, box)"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
-              />
-
-              <input
-                value={formData.product_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, product_date: e.target.value })
-                }
-                type="date"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
-              />
-
-              <input
-                value={formData.expiry_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, expiry_date: e.target.value })
-                }
-                type="date"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
-              />
-
-              <textarea
-                value={formData.note}
-                onChange={(e) =>
-                  setFormData({ ...formData, note: e.target.value })
-                }
-                placeholder="Note"
-                className="min-h-[90px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none"
-              />
+              <input value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} placeholder="Menge" type="number" className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
+              <input value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} placeholder="Einheit: kg, Packung, Box" className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
+              <input value={formData.product_date} onChange={(e) => setFormData({ ...formData, product_date: e.target.value })} type="date" className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
+              <input value={formData.expiry_date} onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })} type="date" className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
+              <textarea value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} placeholder="Notiz" className="min-h-[90px] w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none" />
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <button
-                onClick={closeForm}
-                className="rounded-2xl bg-slate-200 px-4 py-3 font-bold text-slate-700"
-              >
-                Cancel
+              <button onClick={closeForm} className="rounded-2xl bg-stone-200 px-4 py-3 font-bold text-stone-700">
+                Abbrechen
               </button>
-
-              <button
-                onClick={handleSaveProduct}
-                className="rounded-2xl bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-3 font-bold text-white"
-              >
-                Save
+              <button onClick={handleSaveProduct} className="rounded-2xl bg-[#1f4d2b] px-4 py-3 font-bold text-white">
+                Speichern
               </button>
             </div>
-          </div>
+          </section>
         )}
 
         <div className="mt-5 space-y-4">
           {loading ? (
-            <div className="rounded-[28px] bg-white/90 p-6 text-center shadow-xl ring-1 ring-black/5">
-              Loading products...
-            </div>
+            <div className="rounded-[28px] bg-white p-6 text-center shadow-sm">Produkte werden geladen...</div>
           ) : filteredItems.length === 0 ? (
-            <div className="rounded-[28px] bg-white/90 p-6 text-center shadow-xl ring-1 ring-black/5">
-              No products found.
-            </div>
+            <div className="rounded-[28px] bg-white p-6 text-center shadow-sm">Keine Produkte gefunden.</div>
           ) : (
             filteredItems.map((item) => {
               const qty = Number(item.quantity);
 
               return (
-                <div
-                  key={item.id}
-                  className="rounded-[30px] bg-white/90 p-4 shadow-xl ring-1 ring-black/5"
-                >
-                  <h2 className="text-2xl font-black tracking-tight text-slate-900">
-                    {item.item_name}
-                  </h2>
+                <article key={item.id} className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
+                  <h2 className="text-2xl font-black">{item.item_name}</h2>
 
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-700 ring-1 ring-emerald-100">
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-[#e8f2eb] px-3 py-1 text-sm font-bold text-[#1f4d2b]">
                       {item.quantity} {item.unit}
                     </span>
 
-                    <span className="rounded-full bg-violet-50 px-3 py-1 text-sm font-semibold text-violet-700 ring-1 ring-violet-100">
+                    <span className="rounded-full bg-stone-100 px-3 py-1 text-sm font-semibold text-stone-600">
                       {item.category || "Other"}
                     </span>
 
                     {qty <= 2 ? (
-                      <span className="rounded-full bg-red-50 px-3 py-1 text-sm font-bold text-red-600 ring-1 ring-red-100">
-                        Low stock
+                      <span className="rounded-full bg-red-50 px-3 py-1 text-sm font-bold text-red-700">
+                        Niedrig
                       </span>
                     ) : (
-                      <span className="rounded-full bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-700 ring-1 ring-sky-100">
-                        Good level
+                      <span className="rounded-full bg-[#eef6f0] px-3 py-1 text-sm font-semibold text-[#2f7d46]">
+                        Bestand OK
                       </span>
                     )}
                   </div>
 
-                  <div className="mt-4 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-100">
+                  <div className="mt-4 rounded-2xl bg-stone-50 p-3">
                     <div className="mb-2 flex items-center justify-between">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Product meter
-                      </p>
-                      <p className="text-sm font-bold text-slate-700">{qty}/10</p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-stone-500">Bestandsanzeige</p>
+                      <p className="text-sm font-bold">{qty}/10</p>
                     </div>
 
-                    <div className="h-4 overflow-hidden rounded-full bg-slate-200">
-                      <div
-                        className={`h-full rounded-full ${getMeterStyle(qty)}`}
-                        style={{ width: `${getMeterPercent(qty)}%` }}
-                      />
+                    <div className="h-3 overflow-hidden rounded-full bg-stone-200">
+                      <div className={`h-full rounded-full ${getMeterColor(qty)}`} style={{ width: `${getMeterPercent(qty)}%` }} />
                     </div>
                   </div>
 
                   {item.note ? (
-                    <div className="mt-4 rounded-2xl bg-gradient-to-r from-fuchsia-50 to-violet-50 px-4 py-3 ring-1 ring-violet-100">
-                      <p className="text-sm font-medium text-violet-700">{item.note}</p>
+                    <div className="mt-4 rounded-2xl bg-[#fff8df] px-4 py-3">
+                      <p className="text-sm font-medium text-stone-700">{item.note}</p>
                     </div>
                   ) : null}
 
-                  <div className="mt-4 rounded-2xl bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-3 ring-1 ring-slate-200">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">
-                      Last updated by
-                    </p>
-                    <p className="mt-1 text-sm font-bold text-slate-800">
-                      {item.updated_by || "-"}
-                    </p>
+                  <div className="mt-4 rounded-2xl bg-stone-50 px-4 py-3">
+                    <p className="text-xs uppercase tracking-wide text-stone-500">Aktualisiert von</p>
+                    <p className="mt-1 text-sm font-bold">{item.updated_by || "-"}</p>
                     {item.updated_at ? (
-                      <p className="mt-1 text-xs text-slate-500">
-                        {new Date(item.updated_at).toLocaleString("en-GB")}
+                      <p className="mt-1 text-xs text-stone-500">
+                        {new Date(item.updated_at).toLocaleString("de-DE")}
                       </p>
                     ) : null}
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => updateQuantity(item, -1)}
-                      className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose-500 to-red-500 text-lg font-bold text-white shadow-lg transition hover:scale-[1.02] active:scale-95"
-                    >
-                      <span className="text-2xl leading-none">−</span>
-                      <span>Minus</span>
+                    <button onClick={() => updateQuantity(item, -1)} className="h-14 rounded-2xl border border-red-200 bg-red-50 text-lg font-bold text-red-700 active:scale-[0.98]">
+                      − Minus
                     </button>
-
-                    <button
-                      onClick={() => updateQuantity(item, 1)}
-                      className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-500 text-lg font-bold text-white shadow-lg transition hover:scale-[1.02] active:scale-95"
-                    >
-                      <span className="text-2xl leading-none">+</span>
-                      <span>Plus</span>
+                    <button onClick={() => updateQuantity(item, 1)} className="h-14 rounded-2xl bg-[#1f4d2b] text-lg font-bold text-white active:scale-[0.98]">
+                      + Plus
                     </button>
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => openEditForm(item)}
-                      className="rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-3 font-bold text-white"
-                    >
-                      Edit
+                    <button onClick={() => openEditForm(item)} className="rounded-2xl bg-stone-800 px-4 py-3 font-bold text-white">
+                      Bearbeiten
                     </button>
-
-                    <button
-                      onClick={() => handleDeleteProduct(item)}
-                      className="rounded-2xl bg-gradient-to-r from-slate-700 to-slate-900 px-4 py-3 font-bold text-white"
-                    >
-                      Delete
+                    <button onClick={() => handleDeleteProduct(item)} className="rounded-2xl border border-red-200 bg-white px-4 py-3 font-bold text-red-700">
+                      Löschen
                     </button>
                   </div>
-                </div>
+                </article>
               );
             })
           )}

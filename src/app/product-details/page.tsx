@@ -31,8 +31,7 @@ export default function ProductDetailsPage() {
       .order("item_name", { ascending: true });
 
     if (error) {
-      console.error("product-details loadItems error:", error);
-      alert(`product-details error: ${error.message}`);
+      alert(`Fehler beim Laden: ${error.message}`);
       setItems([]);
       setLoading(false);
       return;
@@ -44,126 +43,75 @@ export default function ProductDetailsPage() {
 
   function getDaysLeft(expiryDate: string | null) {
     if (!expiryDate) return null;
-
     const today = new Date();
     const expiry = new Date(expiryDate);
-
     today.setHours(0, 0, 0, 0);
     expiry.setHours(0, 0, 0, 0);
-
-    const diffTime = expiry.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   }
 
   function getLifeBadge(daysLeft: number | null) {
-    if (daysLeft === null) return "bg-slate-100 text-slate-600";
+    if (daysLeft === null) return "bg-stone-100 text-stone-600";
     if (daysLeft < 0) return "bg-red-100 text-red-700";
-    if (daysLeft <= 2) return "bg-orange-100 text-orange-700";
-    return "bg-emerald-100 text-emerald-700";
+    if (daysLeft <= 2) return "bg-amber-100 text-amber-700";
+    return "bg-[#e8f2eb] text-[#1f4d2b]";
   }
 
   function getLifeText(daysLeft: number | null) {
-    if (daysLeft === null) return "No expiry";
-    if (daysLeft < 0) return "Expired";
-    if (daysLeft === 0) return "Last day";
-    if (daysLeft === 1) return "1 day left";
-    return `${daysLeft} days left`;
+    if (daysLeft === null) return "Kein Datum";
+    if (daysLeft < 0) return "Abgelaufen";
+    if (daysLeft === 0) return "Letzter Tag";
+    if (daysLeft === 1) return "1 Tag übrig";
+    return `${daysLeft} Tage übrig`;
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#eefaf2] via-[#f3f8ff] to-[#fff5eb] pb-28 text-slate-900">
+    <main className="min-h-screen bg-[#f5f1e8] pb-28 text-stone-900">
       <div className="mx-auto max-w-md px-4 py-4">
-        <div className="rounded-[30px] bg-white/90 p-4 shadow-xl ring-1 ring-black/5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-600">
+        <section className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#2f5d3a]">
             LPG BioMarkt
           </p>
-          <h1 className="mt-1 text-4xl font-black tracking-tight text-slate-900">
-            Products
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Product number, date, expiry and quantity
-          </p>
-        </div>
+          <h1 className="mt-1 text-3xl font-black tracking-tight">Produkte</h1>
+          <p className="mt-1 text-sm text-stone-500">Produktnummer, Datum und Haltbarkeit</p>
+        </section>
 
         <div className="mt-5 space-y-4">
           {loading ? (
-            <div className="rounded-[28px] bg-white/90 p-6 text-center shadow-lg ring-1 ring-black/5">
-              Loading products...
-            </div>
+            <div className="rounded-[28px] bg-white p-6 text-center shadow-sm">Produkte werden geladen...</div>
           ) : items.length === 0 ? (
-            <div className="rounded-[28px] bg-white/90 p-6 text-center shadow-lg ring-1 ring-black/5">
-              No products found.
-            </div>
+            <div className="rounded-[28px] bg-white p-6 text-center shadow-sm">Keine Produkte gefunden.</div>
           ) : (
             items.map((item) => {
               const daysLeft = getDaysLeft(item.expiry_date);
 
               return (
-                <div
-                  key={item.id}
-                  className="rounded-[30px] bg-white/90 p-4 shadow-xl ring-1 ring-black/5"
-                >
-                  <h2 className="text-2xl font-black tracking-tight text-slate-900">
-                    {item.item_name}
-                  </h2>
+                <article key={item.id} className="rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
+                  <h2 className="text-2xl font-black">{item.item_name}</h2>
 
-                  <div className="mt-3 space-y-3">
-                    <div className="rounded-2xl bg-slate-50 px-4 py-3 ring-1 ring-slate-100">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">
-                        Product Number
-                      </p>
-                      <p className="mt-1 text-sm font-bold text-slate-800">
-                        {item.product_number || "-"}
-                      </p>
-                    </div>
+                  <div className="mt-4 space-y-3">
+                    {[
+                      ["Produktnummer", item.product_number || "-"],
+                      ["Menge", `${item.quantity} ${item.unit || ""}`],
+                      ["Produktdatum", item.product_date ? new Date(item.product_date).toLocaleDateString("de-DE") : "-"],
+                      ["Ablaufdatum", item.expiry_date ? new Date(item.expiry_date).toLocaleDateString("de-DE") : "-"],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-2xl bg-stone-50 px-4 py-3">
+                        <p className="text-xs uppercase tracking-wide text-stone-500">{label}</p>
+                        <p className="mt-1 text-sm font-bold">{value}</p>
+                      </div>
+                    ))}
 
-                    <div className="rounded-2xl bg-slate-50 px-4 py-3 ring-1 ring-slate-100">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">
-                        Quantity
-                      </p>
-                      <p className="mt-1 text-sm font-bold text-slate-800">
-                        {item.quantity} {item.unit || ""}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl bg-slate-50 px-4 py-3 ring-1 ring-slate-100">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">
-                        Product Date
-                      </p>
-                      <p className="mt-1 text-sm font-bold text-slate-800">
-                        {item.product_date
-                          ? new Date(item.product_date).toLocaleDateString("en-GB")
-                          : "-"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl bg-slate-50 px-4 py-3 ring-1 ring-slate-100">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">
-                        Expiry Date
-                      </p>
-                      <p className="mt-1 text-sm font-bold text-slate-800">
-                        {item.expiry_date
-                          ? new Date(item.expiry_date).toLocaleDateString("en-GB")
-                          : "-"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl bg-slate-50 px-4 py-3 ring-1 ring-slate-100">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">
-                        Life of Product
-                      </p>
+                    <div className="rounded-2xl bg-stone-50 px-4 py-3">
+                      <p className="text-xs uppercase tracking-wide text-stone-500">Haltbarkeit</p>
                       <div className="mt-2">
-                        <span
-                          className={`rounded-full px-3 py-1 text-sm font-bold ${getLifeBadge(
-                            daysLeft
-                          )}`}
-                        >
+                        <span className={`rounded-full px-3 py-1 text-sm font-bold ${getLifeBadge(daysLeft)}`}>
                           {getLifeText(daysLeft)}
                         </span>
                       </div>
                     </div>
                   </div>
-                </div>
+                </article>
               );
             })
           )}
