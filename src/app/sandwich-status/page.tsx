@@ -26,6 +26,79 @@ const EMPTY_FORM = {
   ingredientText: "",
 };
 
+const INGREDIENT_ALIASES: Record<string, string[]> = {
+  turkey: ["turkey", "pute", "putenbrust"],
+  pute: ["pute", "turkey", "putenbrust"],
+
+  salad: ["salad", "salat", "grünzeug", "gruenzeug"],
+  salat: ["salat", "salad", "grünzeug", "gruenzeug"],
+
+  cream: ["cream", "creme", "sahne"],
+  creme: ["creme", "cream", "sahne"],
+  sahne: ["sahne", "cream", "creme"],
+
+  cucumber: ["cucumber", "gurke", "gurken"],
+  gurke: ["gurke", "cucumber", "gurken"],
+
+  tomato: ["tomato", "tomate", "tomaten", "tomate scharf"],
+  tomate: ["tomate", "tomato", "tomaten", "tomate scharf"],
+
+  cheese: ["cheese", "käse", "kaese", "gouda", "bergkäse", "bergkaese", "brie", "camembert"],
+  käse: ["käse", "kaese", "cheese", "gouda", "bergkäse", "bergkaese", "brie", "camembert"],
+  kaese: ["kaese", "käse", "cheese", "gouda", "bergkaese", "bergkäse", "brie", "camembert"],
+
+  egg: ["egg", "eggs", "ei", "eier"],
+  ei: ["ei", "eier", "egg", "eggs"],
+  eier: ["eier", "ei", "egg", "eggs"],
+
+  mayo: ["mayo", "mayonnaise", "senf-mayo", "vegane mayo"],
+  mayonnaise: ["mayonnaise", "mayo", "senf-mayo", "vegane mayo"],
+
+  veganemayo: ["vegane mayo", "vegan mayo", "mayo"],
+  senfmayo: ["senf-mayo", "senf mayo", "mayo"],
+
+  tofu: ["tofu", "tofuschnetzel", "räuchertofu", "raeuchertofu"],
+  räuchertofu: ["räuchertofu", "raeuchertofu", "tofu"],
+  raeuchertofu: ["raeuchertofu", "räuchertofu", "tofu"],
+
+  beetroot: ["beetroot", "rote bete", "rotebete"],
+  rotebete: ["rote bete", "rotebete", "beetroot"],
+
+  arugula: ["arugula", "rucola", "ruccola"],
+  rucola: ["rucola", "ruccola", "arugula"],
+
+  bellpepper: ["bell pepper", "paprika", "paprikastreifen"],
+  paprika: ["paprika", "bell pepper", "paprikastreifen"],
+
+  parsley: ["parsley", "petersilie"],
+  petersilie: ["petersilie", "parsley"],
+
+  cress: ["cress", "kresse"],
+  kresse: ["kresse", "cress"],
+
+  pesto: ["pesto"],
+  dill: ["dill"],
+  meerrettich: ["meerrettich", "horseradish"],
+  horseradish: ["horseradish", "meerrettich"],
+  preiselbeere: ["preiselbeere", "cranberry"],
+  cranberry: ["cranberry", "preiselbeere"],
+
+  salami: ["salami"],
+  schinken: ["schinken", "ham"],
+  ham: ["ham", "schinken"],
+  fleischkäse: ["fleischkäse", "fleischkaese", "leberkäse", "leberkaese"],
+  fleischkaese: ["fleischkaese", "fleischkäse", "leberkaese", "leberkäse"],
+  leberkäse: ["leberkäse", "leberkaese", "fleischkäse", "fleischkaese"],
+  leberkaese: ["leberkaese", "leberkäse", "fleischkaese", "fleischkäse"],
+
+  mozzarella: ["mozzarella"],
+  gouda: ["gouda", "käse", "kaese", "cheese"],
+  brie: ["brie", "camembert", "käse", "kaese", "cheese"],
+  camembert: ["camembert", "brie", "käse", "kaese", "cheese"],
+  bergkäse: ["bergkäse", "bergkaese", "käse", "kaese", "cheese"],
+  bergkaese: ["bergkaese", "bergkäse", "kaese", "käse", "cheese"],
+};
+
 function normalize(text: string) {
   return text
     .toLowerCase()
@@ -33,20 +106,87 @@ function normalize(text: string) {
     .replaceAll("ö", "oe")
     .replaceAll("ü", "ue")
     .replaceAll("ß", "ss")
+    .replaceAll("-", " ")
+    .replaceAll("_", " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
+function compact(text: string) {
+  return normalize(text).replaceAll(" ", "");
+}
+
+function getAliasWords(text: string) {
+  const normalized = normalize(text);
+  const compacted = compact(text);
+
+  const aliases = new Set<string>();
+  aliases.add(normalized);
+  aliases.add(compacted);
+
+  Object.entries(INGREDIENT_ALIASES).forEach(([key, values]) => {
+    const normalizedKey = normalize(key);
+    const compactKey = compact(key);
+
+    const allWords = [normalizedKey, compactKey, ...values.map(normalize), ...values.map(compact)];
+
+    const matches = allWords.some((word) => {
+      return (
+        normalized.includes(word) ||
+        word.includes(normalized) ||
+        compacted.includes(word) ||
+        word.includes(compacted)
+      );
+    });
+
+    if (matches) {
+      values.forEach((value) => {
+        aliases.add(normalize(value));
+        aliases.add(compact(value));
+      });
+    }
+  });
+
+  return Array.from(aliases);
+}
+
 function ingredientAvailable(ingredient: string, stockItems: StockItem[]) {
-  const ingredientText = normalize(ingredient);
+  const ingredientAliases = getAliasWords(ingredient);
 
   return stockItems.some((item) => {
-    const itemName = normalize(item.item_name);
     const quantity = Number(item.quantity);
+    if (Number.isNaN(quantity) || quantity <= 0) return false;
 
-    const nameMatches =
-      itemName.includes(ingredientText) || ingredientText.includes(itemName);
+    const stockAliases = getAliasWords(item.item_name);
 
-    return nameMatches && !Number.isNaN(quantity) && quantity > 0;
+    return ingredientAliases.some((ingredientWord) =>
+      stockAliases.some((stockWord) => {
+        return (
+          stockWord.includes(ingredientWord) ||
+          ingredientWord.includes(stockWord)
+        );
+      })
+    );
+  });
+}
+
+function getMatchedStock(ingredient: string, stockItems: StockItem[]) {
+  const ingredientAliases = getAliasWords(ingredient);
+
+  return stockItems.find((item) => {
+    const quantity = Number(item.quantity);
+    if (Number.isNaN(quantity) || quantity <= 0) return false;
+
+    const stockAliases = getAliasWords(item.item_name);
+
+    return ingredientAliases.some((ingredientWord) =>
+      stockAliases.some((stockWord) => {
+        return (
+          stockWord.includes(ingredientWord) ||
+          ingredientWord.includes(stockWord)
+        );
+      })
+    );
   });
 }
 
@@ -232,6 +372,15 @@ export default function SandwichStatusPage() {
         (ingredient) => !ingredientAvailable(ingredient, stockItems)
       );
 
+      const matched = ingredients
+        .map((ingredient) => {
+          const stock = getMatchedStock(ingredient, stockItems);
+          return stock
+            ? `${ingredient} → ${stock.item_name} (${stock.quantity} ${stock.unit || ""})`
+            : null;
+        })
+        .filter(Boolean) as string[];
+
       const progress =
         ingredients.length === 0
           ? 0
@@ -242,6 +391,7 @@ export default function SandwichStatusPage() {
         ingredients,
         available,
         missing,
+        matched,
         progress,
       };
     });
@@ -266,7 +416,7 @@ export default function SandwichStatusPage() {
                 Sandwich Status
               </h1>
               <p className="mt-1 text-sm text-stone-500">
-                Zutaten prüfen und Sandwiches bearbeiten
+                Smart Matching: Salat = Salad, Pute = Turkey
               </p>
             </div>
 
@@ -374,11 +524,11 @@ export default function SandwichStatusPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, ingredientText: e.target.value })
                   }
-                  placeholder="Tofu, Salat, Gurke, Tomate scharf"
+                  placeholder="Pute, Salat, Sahne"
                   className="mt-1 min-h-[110px] w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 font-semibold outline-none focus:border-[#1f4d2b]"
                 />
                 <p className="mt-2 text-xs text-stone-500">
-                  Zutaten bitte mit Komma trennen.
+                  Zutaten mit Komma trennen. Beispiel: Pute, Salat, Sahne
                 </p>
               </div>
             </div>
@@ -469,11 +619,11 @@ export default function SandwichStatusPage() {
                 <div className="space-y-3 p-5">
                   <div className="rounded-2xl bg-[#e8f2eb] px-4 py-3">
                     <p className="text-xs font-bold uppercase tracking-wide text-[#1f4d2b]">
-                      Verfügbar
+                      Gefunden im Lager
                     </p>
                     <p className="mt-2 text-sm font-semibold text-[#1f4d2b]">
-                      {sandwich.available.length > 0
-                        ? sandwich.available.join(", ")
+                      {sandwich.matched.length > 0
+                        ? sandwich.matched.join(", ")
                         : "Keine Zutaten verfügbar"}
                     </p>
                   </div>
