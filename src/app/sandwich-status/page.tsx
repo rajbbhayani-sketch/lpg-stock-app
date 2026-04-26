@@ -11,81 +11,20 @@ type StockItem = {
   unit: string | null;
 };
 
-type Sandwich = {
+type SandwichRecipe = {
+  id: string;
   name: string;
-  type: string;
-  icon: string;
-  ingredients: string[];
+  type: string | null;
+  icon: string | null;
+  ingredients: string[] | null;
 };
 
-const SANDWICHES: Sandwich[] = [
-  {
-    name: "Kringel Tofu Chili",
-    type: "Vegan",
-    icon: "🥯",
-    ingredients: ["Tofu", "Salat", "Gurke", "Tomate scharf"],
-  },
-  {
-    name: "Bagel Putenbrust",
-    type: "Fleisch",
-    icon: "🥯",
-    ingredients: ["Pute", "Salat", "Sahne"],
-  },
-  {
-    name: "Simit Rote Bete",
-    type: "Vegan",
-    icon: "🥨",
-    ingredients: ["Rote Bete", "Vegane Mayo", "Salat"],
-  },
-  {
-    name: "Brötchen Camembert",
-    type: "Käse",
-    icon: "🥖",
-    ingredients: ["Brie", "Preiselbeere", "Salat"],
-  },
-  {
-    name: "Käsestange Ei",
-    type: "Ei / Käse",
-    icon: "🥚",
-    ingredients: ["Eier", "Gouda", "Salat"],
-  },
-  {
-    name: "Räuchertofu Sesam-Mandel",
-    type: "Vegan",
-    icon: "🥪",
-    ingredients: ["Räuchertofu", "Salat", "Gurke", "Vegane Mayo"],
-  },
-  {
-    name: "Brötchen Käse und Ei",
-    type: "Ei / Käse",
-    icon: "🥚",
-    ingredients: ["Eier", "Gouda", "Salat"],
-  },
-  {
-    name: "Bergkäse Brötchen",
-    type: "Käse",
-    icon: "🧀",
-    ingredients: ["Bergkäse", "Salat", "Gurke"],
-  },
-  {
-    name: "Dinkel Mozzarella",
-    type: "Käse",
-    icon: "🧀",
-    ingredients: ["Mozzarella", "Pesto", "Rucola", "Tomate"],
-  },
-  {
-    name: "Fleischkäse Brötchen",
-    type: "Fleisch",
-    icon: "🥩",
-    ingredients: ["Fleischkäse", "Senf-Mayo", "Salat"],
-  },
-  {
-    name: "Gouda Brötchen",
-    type: "Käse",
-    icon: "🧀",
-    ingredients: ["Gouda", "Salat", "Gurke"],
-  },
-];
+const EMPTY_FORM = {
+  name: "",
+  type: "Vegan",
+  icon: "🥪",
+  ingredientText: "",
+};
 
 function normalize(text: string) {
   return text
@@ -129,10 +68,22 @@ function getStatusClass(progress: number) {
   return "bg-red-50 text-red-700 border-red-100";
 }
 
+function parseIngredients(text: string) {
+  return text
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export default function SandwichStatusPage() {
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [recipes, setRecipes] = useState<SandwichRecipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [todayText, setTodayText] = useState("");
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingRecipe, setEditingRecipe] = useState<SandwichRecipe | null>(null);
+  const [formData, setFormData] = useState(EMPTY_FORM);
 
   useEffect(() => {
     setTodayText(
@@ -143,50 +94,158 @@ export default function SandwichStatusPage() {
       })
     );
 
-    loadStock();
+    loadAll();
   }, []);
 
-  async function loadStock() {
+  async function loadAll() {
     setLoading(true);
+    await Promise.all([loadStock(), loadRecipes()]);
+    setLoading(false);
+  }
 
+  async function loadStock() {
     const { data, error } = await supabase
       .from("stock_items")
       .select("id, item_name, quantity, unit")
       .order("item_name", { ascending: true });
 
     if (error) {
-      alert(`Fehler beim Laden: ${error.message}`);
+      alert(`Lager konnte nicht geladen werden: ${error.message}`);
       setStockItems([]);
-      setLoading(false);
       return;
     }
 
     setStockItems(data || []);
-    setLoading(false);
+  }
+
+  async function loadRecipes() {
+    const { data, error } = await supabase
+      .from("sandwich_recipes")
+      .select("id, name, type, icon, ingredients")
+      .order("name", { ascending: true });
+
+    if (error) {
+      alert(`Sandwich-Rezepte konnten nicht geladen werden: ${error.message}`);
+      setRecipes([]);
+      return;
+    }
+
+    setRecipes(data || []);
+  }
+
+  function openAddForm() {
+    setEditingRecipe(null);
+    setFormData(EMPTY_FORM);
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function openEditForm(recipe: SandwichRecipe) {
+    setEditingRecipe(recipe);
+    setFormData({
+      name: recipe.name || "",
+      type: recipe.type || "Vegan",
+      icon: recipe.icon || "🥪",
+      ingredientText: (recipe.ingredients || []).join(", "),
+    });
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingRecipe(null);
+    setFormData(EMPTY_FORM);
+  }
+
+  async function saveRecipe() {
+    const name = formData.name.trim();
+    const ingredients = parseIngredients(formData.ingredientText);
+
+    if (!name) {
+      alert("Bitte Sandwich-Name eingeben.");
+      return;
+    }
+
+    if (ingredients.length === 0) {
+      alert("Bitte mindestens eine Zutat eingeben.");
+      return;
+    }
+
+    const payload = {
+      name,
+      type: formData.type.trim() || null,
+      icon: formData.icon.trim() || "🥪",
+      ingredients,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (editingRecipe) {
+      const { error } = await supabase
+        .from("sandwich_recipes")
+        .update(payload)
+        .eq("id", editingRecipe.id);
+
+      if (error) {
+        alert(`Speichern fehlgeschlagen: ${error.message}`);
+        return;
+      }
+    } else {
+      const { error } = await supabase.from("sandwich_recipes").insert(payload);
+
+      if (error) {
+        alert(`Hinzufügen fehlgeschlagen: ${error.message}`);
+        return;
+      }
+    }
+
+    closeForm();
+    await loadRecipes();
+  }
+
+  async function deleteRecipe(recipe: SandwichRecipe) {
+    const ok = window.confirm(`${recipe.name} wirklich löschen?`);
+    if (!ok) return;
+
+    const { error } = await supabase
+      .from("sandwich_recipes")
+      .delete()
+      .eq("id", recipe.id);
+
+    if (error) {
+      alert(`Löschen fehlgeschlagen: ${error.message}`);
+      return;
+    }
+
+    await loadRecipes();
   }
 
   const sandwichStatus = useMemo(() => {
-    return SANDWICHES.map((sandwich) => {
-      const available = sandwich.ingredients.filter((ingredient) =>
+    return recipes.map((recipe) => {
+      const ingredients = recipe.ingredients || [];
+
+      const available = ingredients.filter((ingredient) =>
         ingredientAvailable(ingredient, stockItems)
       );
 
-      const missing = sandwich.ingredients.filter(
+      const missing = ingredients.filter(
         (ingredient) => !ingredientAvailable(ingredient, stockItems)
       );
 
-      const progress = Math.round(
-        (available.length / sandwich.ingredients.length) * 100
-      );
+      const progress =
+        ingredients.length === 0
+          ? 0
+          : Math.round((available.length / ingredients.length) * 100);
 
       return {
-        ...sandwich,
+        ...recipe,
+        ingredients,
         available,
         missing,
         progress,
       };
     });
-  }, [stockItems]);
+  }, [recipes, stockItems]);
 
   const readyCount = sandwichStatus.filter((item) => item.progress === 100).length;
   const warningCount = sandwichStatus.filter(
@@ -207,7 +266,7 @@ export default function SandwichStatusPage() {
                 Sandwich Status
               </h1>
               <p className="mt-1 text-sm text-stone-500">
-                Was können wir mit aktuellem Lager machen?
+                Zutaten prüfen und Sandwiches bearbeiten
               </p>
             </div>
 
@@ -233,23 +292,134 @@ export default function SandwichStatusPage() {
               <p className="mt-1 text-2xl font-black">{blockedCount}</p>
             </div>
           </div>
+
+          <button
+            onClick={openAddForm}
+            className="mt-4 w-full rounded-2xl bg-[#1f4d2b] px-4 py-3 font-black text-white"
+          >
+            + Sandwich hinzufügen
+          </button>
         </section>
+
+        {showForm ? (
+          <section className="mt-5 rounded-[28px] border border-stone-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-black">
+                {editingRecipe ? "Sandwich bearbeiten" : "Sandwich hinzufügen"}
+              </h2>
+
+              <button
+                onClick={closeForm}
+                className="rounded-full bg-stone-100 px-3 py-1 text-xs font-bold text-stone-700"
+              >
+                Schließen
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wide text-stone-500">
+                  Name
+                </label>
+                <input
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  placeholder="z.B. Kringel Tofu Chili"
+                  className="mt-1 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 font-semibold outline-none focus:border-[#1f4d2b]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wide text-stone-500">
+                  Typ
+                </label>
+                <select
+                  value={formData.type}
+                  onChange={(e) =>
+                    setFormData({ ...formData, type: e.target.value })
+                  }
+                  className="mt-1 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 font-semibold outline-none focus:border-[#1f4d2b]"
+                >
+                  <option value="Vegan">Vegan</option>
+                  <option value="Vegetarisch">Vegetarisch</option>
+                  <option value="Käse">Käse</option>
+                  <option value="Ei / Käse">Ei / Käse</option>
+                  <option value="Fleisch">Fleisch</option>
+                  <option value="Sonstiges">Sonstiges</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wide text-stone-500">
+                  Icon
+                </label>
+                <input
+                  value={formData.icon}
+                  onChange={(e) =>
+                    setFormData({ ...formData, icon: e.target.value })
+                  }
+                  placeholder="🥪"
+                  className="mt-1 w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 font-semibold outline-none focus:border-[#1f4d2b]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wide text-stone-500">
+                  Zutaten
+                </label>
+                <textarea
+                  value={formData.ingredientText}
+                  onChange={(e) =>
+                    setFormData({ ...formData, ingredientText: e.target.value })
+                  }
+                  placeholder="Tofu, Salat, Gurke, Tomate scharf"
+                  className="mt-1 min-h-[110px] w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 font-semibold outline-none focus:border-[#1f4d2b]"
+                />
+                <p className="mt-2 text-xs text-stone-500">
+                  Zutaten bitte mit Komma trennen.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <button
+                onClick={closeForm}
+                className="rounded-2xl bg-stone-200 px-4 py-3 font-bold text-stone-700"
+              >
+                Abbrechen
+              </button>
+
+              <button
+                onClick={saveRecipe}
+                className="rounded-2xl bg-[#1f4d2b] px-4 py-3 font-black text-white"
+              >
+                Speichern
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         {loading ? (
           <section className="mt-5 rounded-[28px] bg-white p-6 text-center shadow-sm">
             Sandwich Status wird geladen...
           </section>
+        ) : sandwichStatus.length === 0 ? (
+          <section className="mt-5 rounded-[28px] bg-white p-6 text-center shadow-sm">
+            Noch keine Sandwiches vorhanden.
+          </section>
         ) : (
           <section className="mt-5 space-y-4">
             {sandwichStatus.map((sandwich) => (
               <article
-                key={sandwich.name}
+                key={sandwich.id}
                 className="overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-sm"
               >
                 <div className="bg-[#fbfaf7] px-5 py-4">
                   <div className="flex items-start gap-3">
                     <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#f5f1e8] text-3xl">
-                      {sandwich.icon}
+                      {sandwich.icon || "🥪"}
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -259,7 +429,7 @@ export default function SandwichStatusPage() {
                             {sandwich.name}
                           </h2>
                           <p className="mt-1 text-xs font-bold uppercase tracking-wide text-stone-500">
-                            {sandwich.type}
+                            {sandwich.type || "Sonstiges"}
                           </p>
                         </div>
 
@@ -324,6 +494,22 @@ export default function SandwichStatusPage() {
                       </p>
                     </div>
                   )}
+
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <button
+                      onClick={() => openEditForm(sandwich)}
+                      className="rounded-2xl bg-stone-800 px-4 py-3 font-bold text-white"
+                    >
+                      Bearbeiten
+                    </button>
+
+                    <button
+                      onClick={() => deleteRecipe(sandwich)}
+                      className="rounded-2xl border border-red-200 bg-white px-4 py-3 font-bold text-red-700"
+                    >
+                      Löschen
+                    </button>
+                  </div>
                 </div>
               </article>
             ))}
